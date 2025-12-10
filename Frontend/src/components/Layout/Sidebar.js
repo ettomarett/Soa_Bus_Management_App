@@ -16,7 +16,6 @@ import {
   Dashboard,
   ConfirmationNumber,
   CardMembership,
-  Route,
   Map,
   Navigation,
   Person,
@@ -46,12 +45,6 @@ const menuItems = [
     path: '/subscriptions',
     description: 'Monthly & annual plans',
     badge: 'New'
-  },
-  {
-    text: 'Routes',
-    icon: <Route />,
-    path: '/routes',
-    description: 'Find your journey'
   },
   {
     text: 'Live Map',

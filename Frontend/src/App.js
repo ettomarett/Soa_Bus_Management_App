@@ -13,9 +13,11 @@ import DashboardPage from './pages/Dashboard/DashboardPage';
 import TicketsPage from './pages/Tickets/TicketsPage';
 import SubscriptionsPage from './pages/Subscriptions/SubscriptionsPage';
 import ProfilePage from './pages/Profile/ProfilePage';
-import RoutesPage from './pages/Routes/RoutesPage';
 import LiveMapPage from './pages/LiveMap/LiveMapPage';
 import TripPlannerPage from './pages/TripPlanner/TripPlannerPage';
+import AnalyticsPage from './pages/Analytics/AnalyticsPage';
+import SupportPage from './pages/Support/SupportPage';
+import SettingsPage from './pages/Settings/SettingsPage';
 import NotFoundPage from './pages/NotFound/NotFoundPage';
 
 // Routes updated to include Live Map and Trip Planner
@@ -65,10 +67,12 @@ function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="subscriptions" element={<SubscriptionsPage />} />
-          <Route path="routes" element={<RoutesPage />} />
           <Route path="live-map" element={<LiveMapPage />} />
           <Route path="trip-planner" element={<TripPlannerPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="support" element={<SupportPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
 
         {/* 404 Route */}

@@ -56,10 +56,18 @@ const Navbar = ({ onSidebarToggle }) => {
         return 'Tickets';
       case '/subscriptions':
         return 'Subscriptions';
-      case '/routes':
-        return 'Routes';
+      case '/live-map':
+        return 'Live Map';
+      case '/trip-planner':
+        return 'Trip Planner';
       case '/profile':
         return 'Profile';
+      case '/analytics':
+        return 'Analytics';
+      case '/support':
+        return 'Support';
+      case '/settings':
+        return 'Settings';
       default:
         return 'Urban Transport';
     }
