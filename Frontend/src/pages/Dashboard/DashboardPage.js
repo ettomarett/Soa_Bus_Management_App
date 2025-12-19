@@ -77,7 +77,14 @@ const DashboardPage = () => {
             };
           }
         } catch (error) {
-          console.log('Subscription service unavailable:', error.message);
+          // 404 means no active subscription, which is valid
+          if (error.response?.status === 404) {
+            // No active subscription found - this is normal
+            activeSubscription = null;
+          } else {
+            // Actual service error
+            console.log('Subscription service unavailable:', error.message);
+          }
         }
 
         // Fetch recent tickets with timeout

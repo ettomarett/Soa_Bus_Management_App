@@ -14,7 +14,8 @@ class WebSocketService {
       return;
     }
 
-    const socket = new SockJS('http://localhost:8082/api/v1/ws');
+    const wsUrl = process.env.REACT_APP_WS_URL || (window.location.protocol === 'https:' ? 'https://' : 'http://') + window.location.host + '/api/v1/ws';
+    const socket = new SockJS(wsUrl);
     
     this.client = new Client({
       webSocketFactory: () => socket,

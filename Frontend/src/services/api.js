@@ -7,9 +7,13 @@ const logApiEvent = (message, data = null) => {
   console.log(`[${timestamp}] 🌐 API: ${message}`, data || '');
 };
 
+// Use relative URLs in production (same origin), or environment variable
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api/v1';
+const USER_SERVICE_URL = process.env.REACT_APP_USER_SERVICE_URL || '/api/v1';
+
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: 'http://localhost:8082/api/v1', // Direct to API Gateway
+  baseURL: API_BASE_URL,
   timeout: 15000, // Increased timeout to prevent premature failures
   headers: {
     'Content-Type': 'application/json',
@@ -18,7 +22,7 @@ const api = axios.create({
 
 // Fallback API instance for direct service calls when needed
 export const directUserAPI = axios.create({
-  baseURL: 'http://localhost:8081/api/v1',
+  baseURL: USER_SERVICE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

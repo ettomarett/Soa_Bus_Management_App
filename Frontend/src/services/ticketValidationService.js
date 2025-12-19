@@ -1,12 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8082';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 // Validate a ticket by QR code
 export const validateTicket = async (qrCode, routeId) => {
     try {
         const response = await axios.post(
-            `${API_BASE_URL}/api/v1/tickets/validate`,
+            `${API_BASE_URL}/tickets/validate`,
             {
                 qrCode,
                 routeId,
@@ -28,7 +28,7 @@ export const validateTicket = async (qrCode, routeId) => {
 export const getTicketByQR = async (qrCode) => {
     try {
         const response = await axios.get(
-            `${API_BASE_URL}/api/v1/tickets/qr/${qrCode}`,
+            `${API_BASE_URL}/tickets/qr/${qrCode}`,
             {
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('token')}`,
