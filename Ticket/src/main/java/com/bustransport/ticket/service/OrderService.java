@@ -13,8 +13,6 @@ import com.bustransport.ticket.mapper.OrderMapper;
 import com.bustransport.ticket.repository.OrderRepository;
 import com.bustransport.ticket.repository.TicketRepository;
 import com.bustransport.ticket.util.QRCodeGenerator;
-import com.bustransport.ticket.producer.NotificationProducer;
-import com.bustransport.ticket.dto.NotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,7 +33,6 @@ public class OrderService {
     private final TicketRepository ticketRepository;
     private final OrderMapper orderMapper;
     private final QRCodeGenerator qrCodeGenerator;
-    private final NotificationProducer notificationProducer;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -73,21 +70,6 @@ public class OrderService {
         order = orderRepository.save(order);
 
         log.info("Order created with order number: {}", orderNumber);
-
-        // Send Notification
-        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
-            try {
-                notificationProducer.sendNotification(NotificationRequest.builder()
-                        .to(request.getEmail())
-                        .subject("Order Confirmation - " + orderNumber)
-                        .body("Dear Customer,\n\nYour order " + orderNumber
-                                + " has been successfully created.\nTotal Amount: " + totalAmount
-                                + "\n\nThank you for choosing Urban Transport!")
-                        .build());
-            } catch (Exception e) {
-                log.error("Failed to send order notification", e);
-            }
-        }
 
         return orderMapper.toResponse(order);
     }

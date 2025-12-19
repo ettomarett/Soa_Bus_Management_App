@@ -10,7 +10,6 @@ COPY Ticket/pom.xml Ticket/
 COPY Subscription/pom.xml Subscription/
 COPY Route/pom.xml Route/
 COPY BusGeolocation/pom.xml BusGeolocation/
-COPY Notification/pom.xml Notification/
 COPY api-gateway/pom.xml api-gateway/
 
 # Download dependencies (cached layer)

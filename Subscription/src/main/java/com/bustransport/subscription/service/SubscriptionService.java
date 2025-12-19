@@ -10,8 +10,6 @@ import com.bustransport.subscription.exception.ResourceNotFoundException;
 import com.bustransport.subscription.exception.SubscriptionException;
 import com.bustransport.subscription.mapper.SubscriptionMapper;
 import com.bustransport.subscription.repository.SubscriptionRepository;
-import com.bustransport.subscription.producer.NotificationProducer;
-import com.bustransport.subscription.dto.NotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,7 +30,6 @@ public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionMapper subscriptionMapper;
-    private final NotificationProducer notificationProducer;
 
     // Pricing constants
     private static final BigDecimal MONTHLY_PRICE = new BigDecimal("29.99");
@@ -92,22 +89,6 @@ public class SubscriptionService {
 
         Subscription savedSubscription = subscriptionRepository.save(subscription);
         log.info("Created subscription with id: {} for user: {}", savedSubscription.getId(), request.getUserId());
-
-        // Send Notification
-        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
-            try {
-                notificationProducer.sendNotification(NotificationRequest.builder()
-                        .to(request.getEmail())
-                        .subject("Subscription Confirmation - " + request.getSubscriptionType())
-                        .body("Dear Customer,\n\nYour " + request.getSubscriptionType()
-                                + " subscription has been successfully activated.\nId: " + savedSubscription.getId()
-                                + "\nValid until: " + subscription.getEndDate()
-                                + "\n\nThank you for choosing Urban Transport!")
-                        .build());
-            } catch (Exception e) {
-                log.error("Failed to send subscription notification", e);
-            }
-        }
 
         return subscriptionMapper.toResponse(savedSubscription);
     }

@@ -10,7 +10,6 @@ COPY api-gateway/pom.xml api-gateway/
 COPY Ticket/pom.xml Ticket/
 COPY Subscription/pom.xml Subscription/
 COPY BusGeolocation/pom.xml BusGeolocation/
-COPY Notification/pom.xml Notification/
 
 # Download dependencies
 RUN mvn dependency:go-offline -pl Route -am

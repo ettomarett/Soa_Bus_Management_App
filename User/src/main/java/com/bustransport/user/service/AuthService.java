@@ -9,8 +9,6 @@ import com.bustransport.user.exception.DuplicateResourceException;
 import com.bustransport.user.repository.DriverRepository;
 import com.bustransport.user.repository.PassengerRepository;
 import com.bustransport.user.repository.UserRepository;
-import com.bustransport.user.producer.NotificationProducer;
-import com.bustransport.user.dto.NotificationRequest;
 import com.bustransport.user.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +32,6 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
-    private final NotificationProducer notificationProducer;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -70,18 +67,6 @@ public class AuthService {
                 break;
             default:
                 throw new BadRequestException("Invalid role: " + request.getRole());
-        }
-
-        // Send Welcome Notification
-        try {
-            notificationProducer.sendNotification(NotificationRequest.builder()
-                    .to(user.getEmail())
-                    .subject("Welcome to Urban Transport")
-                    .body("Hello " + user.getFirstName()
-                            + ",\n\nWelcome to Urban Transport! We are glad to have you on board.\n\nBest Regards,\nUrban Transport Team")
-                    .build());
-        } catch (Exception e) {
-            log.error("Failed to send welcome notification", e);
         }
 
         // Generate tokens with userId

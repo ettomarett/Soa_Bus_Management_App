@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 @Generated(
     value = "org.mapstruct.ap.MappingProcessor",
-    date = "2025-12-19T03:23:08+0100",
+    date = "2025-12-19T05:04:27+0100",
     comments = "version: 1.5.5.Final, compiler: Eclipse JDT (IDE) 3.44.0.v20251118-1623, environment: Java 21.0.9 (Eclipse Adoptium)"
 )
 @Component
@@ -20,13 +20,13 @@ public class SubscriptionMapperImpl implements SubscriptionMapper {
             return null;
         }
 
-        Subscription subscription = new Subscription();
+        Subscription.SubscriptionBuilder subscription = Subscription.builder();
 
-        subscription.setUserId( request.getUserId() );
-        subscription.setSubscriptionType( request.getSubscriptionType() );
-        subscription.setAutoRenewal( request.getAutoRenewal() );
+        subscription.autoRenewal( request.getAutoRenewal() );
+        subscription.subscriptionType( request.getSubscriptionType() );
+        subscription.userId( request.getUserId() );
 
-        return subscription;
+        return subscription.build();
     }
 
     @Override
@@ -35,26 +35,24 @@ public class SubscriptionMapperImpl implements SubscriptionMapper {
             return null;
         }
 
-        SubscriptionResponse subscriptionResponse = new SubscriptionResponse();
+        SubscriptionResponse.SubscriptionResponseBuilder subscriptionResponse = SubscriptionResponse.builder();
 
-        subscriptionResponse.setDaysRemaining( subscription.getDaysRemaining() );
-        subscriptionResponse.setActive( subscription.isActive() );
-        subscriptionResponse.setId( subscription.getId() );
-        subscriptionResponse.setUserId( subscription.getUserId() );
-        subscriptionResponse.setSubscriptionType( subscription.getSubscriptionType() );
-        subscriptionResponse.setPrice( subscription.getPrice() );
-        subscriptionResponse.setStartDate( subscription.getStartDate() );
-        subscriptionResponse.setEndDate( subscription.getEndDate() );
-        subscriptionResponse.setStatus( subscription.getStatus() );
-        subscriptionResponse.setAutoRenewal( subscription.getAutoRenewal() );
-        subscriptionResponse.setPaymentId( subscription.getPaymentId() );
-        subscriptionResponse.setCancelledAt( subscription.getCancelledAt() );
-        subscriptionResponse.setCancellationReason( subscription.getCancellationReason() );
-        subscriptionResponse.setCreatedAt( subscription.getCreatedAt() );
-        subscriptionResponse.setUpdatedAt( subscription.getUpdatedAt() );
+        subscriptionResponse.daysRemaining( subscription.getDaysRemaining() );
+        subscriptionResponse.active( subscription.isActive() );
+        subscriptionResponse.autoRenewal( subscription.getAutoRenewal() );
+        subscriptionResponse.cancellationReason( subscription.getCancellationReason() );
+        subscriptionResponse.cancelledAt( subscription.getCancelledAt() );
+        subscriptionResponse.createdAt( subscription.getCreatedAt() );
+        subscriptionResponse.endDate( subscription.getEndDate() );
+        subscriptionResponse.id( subscription.getId() );
+        subscriptionResponse.paymentId( subscription.getPaymentId() );
+        subscriptionResponse.price( subscription.getPrice() );
+        subscriptionResponse.startDate( subscription.getStartDate() );
+        subscriptionResponse.status( subscription.getStatus() );
+        subscriptionResponse.subscriptionType( subscription.getSubscriptionType() );
+        subscriptionResponse.updatedAt( subscription.getUpdatedAt() );
+        subscriptionResponse.userId( subscription.getUserId() );
 
-        setCalculatedFields( subscriptionResponse, subscription );
-
-        return subscriptionResponse;
+        return subscriptionResponse.build();
     }
 }

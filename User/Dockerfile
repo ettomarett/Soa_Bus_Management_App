@@ -7,7 +7,6 @@ WORKDIR /workspace/app
 
 # Copy pom files
 COPY pom.xml .
-COPY Notification/pom.xml Notification/
 COPY User/pom.xml User/
 COPY Ticket/pom.xml Ticket/
 COPY Subscription/pom.xml Subscription/
@@ -34,7 +33,7 @@ RUN addgroup -S spring && adduser -S spring -G spring
 WORKDIR /app
 
 # Copy JAR from build stage
-COPY --from=build /app/User/target/*.jar app.jar
+COPY --from=build /workspace/app/User/target/*.jar app.jar
 
 # Change ownership
 RUN chown spring:spring app.jar
