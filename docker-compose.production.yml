@@ -12,6 +12,8 @@ services:
       - "traefik.http.routers.api-gateway.priority=10"
       - "traefik.http.services.api-gateway.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik-network"
+    environment:
+      SPRING_REDIS_HOST: redis-server  # Use container name instead of service name
     networks:
       - microservices-network
       - traefik-network

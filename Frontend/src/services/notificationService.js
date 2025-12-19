@@ -1,6 +1,6 @@
 import api from './api';
 
-const NOTIFICATION_API = '/api/v1/notifications';
+const NOTIFICATION_API = '/notifications'; // api baseURL already includes /api/v1
 
 export const notificationService = {
   // Get all notifications for a user
