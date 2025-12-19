@@ -50,7 +50,6 @@ steps:
       - name: maven-cache
         path: /root/.m2
     commands:
-      - apk add --no-cache bash || true
       - |
         echo "🔨 Building microservices..."
         
