@@ -26,6 +26,7 @@
         <module>Subscription</module>
         <module>Route</module>
         <module>BusGeolocation</module>
+        <module>Notification</module>
     </modules>
 
     <properties>

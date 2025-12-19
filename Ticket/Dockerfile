@@ -8,6 +8,7 @@ COPY Ticket/pom.xml Ticket/
 COPY User/pom.xml User/
 COPY api-gateway/pom.xml api-gateway/
 COPY Subscription/pom.xml Subscription/
+COPY Notification/pom.xml Notification/
 COPY Route/pom.xml Route/
 COPY BusGeolocation/pom.xml BusGeolocation/
 

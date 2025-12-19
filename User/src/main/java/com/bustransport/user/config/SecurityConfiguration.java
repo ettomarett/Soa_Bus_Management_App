@@ -51,8 +51,8 @@ public class SecurityConfiguration {
                                 "/",
                                 "/api/v1",
                                 "/api/v1/",
-                                "/api/v1/auth/**",           // All auth endpoints
-                                "/auth/**",                  // Alternative path
+                                "/api/v1/auth/**", // All auth endpoints
+                                "/auth/**", // Alternative path
                                 "/api-docs/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
@@ -61,22 +61,21 @@ public class SecurityConfiguration {
                                 "/webjars/**",
                                 "/actuator/**",
                                 "/actuator/health/**",
-                                "/error"
-                        ).permitAll()
+                                "/error")
+                        .permitAll()
 
                         // Role-based endpoints
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/drivers/**").hasRole("DRIVER")
                         .requestMatchers("/api/v1/passengers/**").hasRole("PASSENGER")
+                        .requestMatchers("/api/v1/controller/**").hasRole("CONTROLLER")
 
                         // All other requests require authentication
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
 
                 // Stateless session (JWT-based)
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // Authentication provider
                 .authenticationProvider(authenticationProvider())
@@ -96,8 +95,7 @@ public class SecurityConfiguration {
 
         // Allow all HTTP methods
         configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
-        ));
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
         // Allow all headers
         configuration.setAllowedHeaders(List.of("*"));

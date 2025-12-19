@@ -10,6 +10,8 @@ import com.bustransport.subscription.exception.ResourceNotFoundException;
 import com.bustransport.subscription.exception.SubscriptionException;
 import com.bustransport.subscription.mapper.SubscriptionMapper;
 import com.bustransport.subscription.repository.SubscriptionRepository;
+import com.bustransport.subscription.producer.NotificationProducer;
+import com.bustransport.subscription.dto.NotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -30,6 +32,7 @@ public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionMapper subscriptionMapper;
+    private final NotificationProducer notificationProducer;
 
     // Pricing constants
     private static final BigDecimal MONTHLY_PRICE = new BigDecimal("29.99");
@@ -58,7 +61,8 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public Optional<SubscriptionResponse> getActiveSubscriptionByUserId(Long userId) {
-        Optional<Subscription> subscription = subscriptionRepository.findByUserIdAndStatus(userId, SubscriptionStatus.ACTIVE);
+        Optional<Subscription> subscription = subscriptionRepository.findByUserIdAndStatus(userId,
+                SubscriptionStatus.ACTIVE);
         return subscription.map(subscriptionMapper::toResponse);
     }
 
@@ -68,27 +72,43 @@ public class SubscriptionService {
         // Check if user already has an active subscription
         boolean hasActiveSubscription = subscriptionRepository.existsByUserIdAndStatus(
                 request.getUserId(), SubscriptionStatus.ACTIVE);
-        
+
         if (hasActiveSubscription) {
             throw new SubscriptionException("User already has an active subscription");
         }
 
         Subscription subscription = subscriptionMapper.toEntity(request);
-        
+
         // Set pricing based on subscription type
         subscription.setPrice(getPrice(request.getSubscriptionType()));
-        
+
         // Set dates
         LocalDateTime now = LocalDateTime.now();
         subscription.setStartDate(now);
         subscription.setEndDate(calculateEndDate(now, request.getSubscriptionType()));
-        
+
         // Set initial status
         subscription.setStatus(SubscriptionStatus.ACTIVE);
 
         Subscription savedSubscription = subscriptionRepository.save(subscription);
         log.info("Created subscription with id: {} for user: {}", savedSubscription.getId(), request.getUserId());
-        
+
+        // Send Notification
+        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
+            try {
+                notificationProducer.sendNotification(NotificationRequest.builder()
+                        .to(request.getEmail())
+                        .subject("Subscription Confirmation - " + request.getSubscriptionType())
+                        .body("Dear Customer,\n\nYour " + request.getSubscriptionType()
+                                + " subscription has been successfully activated.\nId: " + savedSubscription.getId()
+                                + "\nValid until: " + subscription.getEndDate()
+                                + "\n\nThank you for choosing Urban Transport!")
+                        .build());
+            } catch (Exception e) {
+                log.error("Failed to send subscription notification", e);
+            }
+        }
+
         return subscriptionMapper.toResponse(savedSubscription);
     }
 
@@ -104,7 +124,7 @@ public class SubscriptionService {
 
         Subscription updatedSubscription = subscriptionRepository.save(subscription);
         log.info("Updated subscription: {}", id);
-        
+
         return subscriptionMapper.toResponse(updatedSubscription);
     }
 
@@ -121,7 +141,7 @@ public class SubscriptionService {
         subscription.renew();
         Subscription renewedSubscription = subscriptionRepository.save(subscription);
         log.info("Renewed subscription: {}", id);
-        
+
         return subscriptionMapper.toResponse(renewedSubscription);
     }
 
@@ -138,7 +158,7 @@ public class SubscriptionService {
         subscription.cancel(reason);
         Subscription cancelledSubscription = subscriptionRepository.save(subscription);
         log.info("Cancelled subscription: {}", id);
-        
+
         return subscriptionMapper.toResponse(cancelledSubscription);
     }
 
@@ -151,7 +171,7 @@ public class SubscriptionService {
         subscription.suspend();
         Subscription suspendedSubscription = subscriptionRepository.save(subscription);
         log.info("Suspended subscription: {}", id);
-        
+
         return subscriptionMapper.toResponse(suspendedSubscription);
     }
 
@@ -164,7 +184,7 @@ public class SubscriptionService {
         subscription.reactivate();
         Subscription reactivatedSubscription = subscriptionRepository.save(subscription);
         log.info("Reactivated subscription: {}", id);
-        
+
         return subscriptionMapper.toResponse(reactivatedSubscription);
     }
 
@@ -175,28 +195,28 @@ public class SubscriptionService {
 
     public void processExpiredSubscriptions() {
         log.info("Processing expired subscriptions");
-        
+
         List<Subscription> expiredSubscriptions = subscriptionRepository
                 .findExpiredSubscriptions(LocalDateTime.now(), SubscriptionStatus.ACTIVE);
-        
+
         for (Subscription subscription : expiredSubscriptions) {
             subscription.setStatus(SubscriptionStatus.EXPIRED);
             subscriptionRepository.save(subscription);
             log.info("Marked subscription {} as expired", subscription.getId());
         }
-        
+
         log.info("Processed {} expired subscriptions", expiredSubscriptions.size());
     }
 
     public void processAutoRenewals() {
         log.info("Processing auto-renewals");
-        
+
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime renewalWindow = now.plusDays(1); // Renew 1 day before expiry
-        
+
         List<Subscription> subscriptionsToRenew = subscriptionRepository
                 .findSubscriptionsForRenewal(now, renewalWindow, SubscriptionStatus.ACTIVE);
-        
+
         for (Subscription subscription : subscriptionsToRenew) {
             try {
                 subscription.renew();
@@ -208,7 +228,7 @@ public class SubscriptionService {
                 subscriptionRepository.save(subscription);
             }
         }
-        
+
         log.info("Processed {} auto-renewals", subscriptionsToRenew.size());
     }
 

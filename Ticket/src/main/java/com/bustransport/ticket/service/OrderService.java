@@ -13,6 +13,8 @@ import com.bustransport.ticket.mapper.OrderMapper;
 import com.bustransport.ticket.repository.OrderRepository;
 import com.bustransport.ticket.repository.TicketRepository;
 import com.bustransport.ticket.util.QRCodeGenerator;
+import com.bustransport.ticket.producer.NotificationProducer;
+import com.bustransport.ticket.dto.NotificationRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,7 @@ public class OrderService {
     private final TicketRepository ticketRepository;
     private final OrderMapper orderMapper;
     private final QRCodeGenerator qrCodeGenerator;
+    private final NotificationProducer notificationProducer;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -44,11 +47,11 @@ public class OrderService {
 
         // Create order
         Order order = Order.builder()
-            .userId(request.getUserId())
-            .orderNumber(orderNumber)
-            .totalAmount(totalAmount)
-            .status(OrderStatus.PENDING)
-            .build();
+                .userId(request.getUserId())
+                .orderNumber(orderNumber)
+                .totalAmount(totalAmount)
+                .status(OrderStatus.PENDING)
+                .build();
 
         // Create tickets with temporary QR codes
         for (CreateTicketRequest ticketRequest : request.getTickets()) {
@@ -71,34 +74,49 @@ public class OrderService {
 
         log.info("Order created with order number: {}", orderNumber);
 
+        // Send Notification
+        if (request.getEmail() != null && !request.getEmail().isEmpty()) {
+            try {
+                notificationProducer.sendNotification(NotificationRequest.builder()
+                        .to(request.getEmail())
+                        .subject("Order Confirmation - " + orderNumber)
+                        .body("Dear Customer,\n\nYour order " + orderNumber
+                                + " has been successfully created.\nTotal Amount: " + totalAmount
+                                + "\n\nThank you for choosing Urban Transport!")
+                        .build());
+            } catch (Exception e) {
+                log.error("Failed to send order notification", e);
+            }
+        }
+
         return orderMapper.toResponse(order);
     }
 
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long id) {
         Order order = orderRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
         return orderMapper.toResponse(order);
     }
 
     @Transactional(readOnly = true)
     public OrderResponse getOrderByOrderNumber(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
-            .orElseThrow(() -> new ResourceNotFoundException("Order not found with order number: " + orderNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with order number: " + orderNumber));
         return orderMapper.toResponse(order);
     }
 
     @Transactional(readOnly = true)
     public List<OrderResponse> getOrdersByUserId(Long userId) {
         return orderRepository.findByUserId(userId).stream()
-            .map(orderMapper::toResponse)
-            .collect(Collectors.toList());
+                .map(orderMapper::toResponse)
+                .collect(Collectors.toList());
     }
 
     @Transactional
     public OrderResponse markOrderAsPaid(Long orderId) {
         Order order = orderRepository.findById(orderId)
-            .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
         order.setStatus(OrderStatus.PAID);
 
@@ -118,7 +136,7 @@ public class OrderService {
     @Transactional
     public OrderResponse cancelOrder(Long orderId) {
         Order order = orderRepository.findById(orderId)
-            .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
         if (order.getStatus() == OrderStatus.PAID) {
             throw new IllegalStateException("Cannot cancel paid order. Please request a refund instead.");
@@ -177,23 +195,23 @@ public class OrderService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime validFrom = request.getValidFrom() != null ? request.getValidFrom() : now;
         LocalDateTime validUntil = request.getValidUntil() != null
-            ? request.getValidUntil()
-            : calculateDefaultValidUntil(validFrom, request.getTicketType());
+                ? request.getValidUntil()
+                : calculateDefaultValidUntil(validFrom, request.getTicketType());
 
         return Ticket.builder()
-            .userId(userId)
-            .ticketType(request.getTicketType())
-            .price(price)
-            .purchaseDate(now)
-            .validFrom(validFrom)
-            .validUntil(validUntil)
-            .status(TicketStatus.ACTIVE)
-            .usageCount(0)
-            .maxUsage(maxUsage)
-            .routeId(request.getRouteId())
-            .scheduleId(request.getScheduleId())
-            .passengerName(request.getPassengerName())
-            .build();
+                .userId(userId)
+                .ticketType(request.getTicketType())
+                .price(price)
+                .purchaseDate(now)
+                .validFrom(validFrom)
+                .validUntil(validUntil)
+                .status(TicketStatus.ACTIVE)
+                .usageCount(0)
+                .maxUsage(maxUsage)
+                .routeId(request.getRouteId())
+                .scheduleId(request.getScheduleId())
+                .passengerName(request.getPassengerName())
+                .build();
     }
 
     private LocalDateTime calculateDefaultValidUntil(LocalDateTime validFrom, TicketType ticketType) {

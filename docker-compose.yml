@@ -155,6 +155,43 @@ services:
       - postgres-route
       - postgres-geolocation
 
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Notification Service
+  notification-service:
+    build:
+      context: .
+      dockerfile: Notification/Dockerfile
+    container_name: notification-service-app
+    restart: unless-stopped
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_MAIL_HOST: smtp.mailtrap.io
+      SPRING_MAIL_USERNAME: check-mailtrap-creds
+      SPRING_MAIL_PASSWORD: check-mailtrap-creds
+    ports:
+      - "8087:8087"
+    networks:
+      - microservices-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   # ========== Microservices ==========
 
   # User Service
