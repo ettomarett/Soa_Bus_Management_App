@@ -29,6 +29,7 @@ public class OptimalPathService {
 
     private final StopRepository stopRepository;
     private final RouteRepository routeRepository;
+    private final RoutingService routingService;
 
     @Cacheable(value = "optimalPaths")
     public OptimalPathResponse calculateOptimalPath(OptimalPathRequest request) {
@@ -112,19 +113,28 @@ public class OptimalPathService {
             startStop.getLatitude(), startStop.getLongitude()
         );
         
+        // Get real walking route geometry
+        List<Coordinate> walkToStopPath = routingService.getWalkingRouteGeometry(
+            request.getStartLat(), request.getStartLon(),
+            startStop.getLatitude(), startStop.getLongitude()
+        );
+        
         segments.add(PathSegment.builder()
             .type("walk")
             .distance(walkToStopDistance)
             .duration((int)(walkToStopDistance.doubleValue() * 12)) // ~5 km/h walking speed
             .instructions("Walk to " + startStop.getName())
-            .path(List.of(
-                new Coordinate(request.getStartLat(), request.getStartLon()),
-                new Coordinate(startStop.getLatitude(), startStop.getLongitude())
-            ))
+            .path(walkToStopPath)
             .build());
 
-        // Transit segment
+        // Transit segment - get real route geometry following roads
         BigDecimal transitDistance = calculateDistance(
+            startStop.getLatitude(), startStop.getLongitude(),
+            endStop.getLatitude(), endStop.getLongitude()
+        );
+        
+        // Get route geometry that follows real streets
+        List<Coordinate> transitPath = routingService.getRouteGeometry(
             startStop.getLatitude(), startStop.getLongitude(),
             endStop.getLatitude(), endStop.getLongitude()
         );
@@ -139,14 +149,17 @@ public class OptimalPathService {
             .duration(route.getEstimatedDuration() != null ? route.getEstimatedDuration() : 
                      (int)(transitDistance.doubleValue() * 2.5)) // ~24 km/h average bus speed
             .instructions("Take " + route.getRouteNumber() + " from " + startStop.getName() + " to " + endStop.getName())
-            .path(List.of(
-                new Coordinate(startStop.getLatitude(), startStop.getLongitude()),
-                new Coordinate(endStop.getLatitude(), endStop.getLongitude())
-            ))
+            .path(transitPath)
             .build());
 
-        // Walking segment from end stop
+        // Walking segment from end stop - get real walking route
         BigDecimal walkFromStopDistance = calculateDistance(
+            endStop.getLatitude(), endStop.getLongitude(),
+            request.getEndLat(), request.getEndLon()
+        );
+        
+        // Get real walking route geometry
+        List<Coordinate> walkFromStopPath = routingService.getWalkingRouteGeometry(
             endStop.getLatitude(), endStop.getLongitude(),
             request.getEndLat(), request.getEndLon()
         );
@@ -156,10 +169,7 @@ public class OptimalPathService {
             .distance(walkFromStopDistance)
             .duration((int)(walkFromStopDistance.doubleValue() * 12))
             .instructions("Walk to destination")
-            .path(List.of(
-                new Coordinate(endStop.getLatitude(), endStop.getLongitude()),
-                new Coordinate(request.getEndLat(), request.getEndLon())
-            ))
+            .path(walkFromStopPath)
             .build());
 
         BigDecimal totalDistance = walkToStopDistance.add(transitDistance).add(walkFromStopDistance);
@@ -181,15 +191,18 @@ public class OptimalPathService {
             request.getEndLat(), request.getEndLon()
         );
 
+        // Get real walking route geometry
+        List<Coordinate> walkingPath = routingService.getWalkingRouteGeometry(
+            request.getStartLat(), request.getStartLon(),
+            request.getEndLat(), request.getEndLon()
+        );
+
         PathSegment walkSegment = PathSegment.builder()
             .type("walk")
             .distance(distance)
             .duration((int)(distance.doubleValue() * 12)) // ~5 km/h walking speed
             .instructions("Walk to destination")
-            .path(List.of(
-                new Coordinate(request.getStartLat(), request.getStartLon()),
-                new Coordinate(request.getEndLat(), request.getEndLon())
-            ))
+            .path(walkingPath)
             .build();
 
         return OptimalPathResponse.builder()
@@ -228,11 +241,5 @@ public class OptimalPathService {
         return polyline.toString();
     }
 
-    // TODO: Integrate GraphHopper for real-world routing on OSM data
-    // This would provide:
-    // - Multi-modal routing (walk + transit + transfers)
-    // - Real road network paths instead of straight lines
-    // - Elevation data and route optimization
-    // - Turn-by-turn directions
 }
 

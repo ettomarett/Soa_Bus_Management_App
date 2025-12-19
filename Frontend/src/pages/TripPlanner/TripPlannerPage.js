@@ -419,8 +419,42 @@ const TripPlannerPage = () => {
                           </Marker>
                         ))}
 
-                        {/* Draw line between selected stops */}
-                        {fromStop && toStop && (
+                        {/* Draw route from search results if available */}
+                        {searchResults && searchResults.segments && searchResults.segments.length > 0 && (
+                          <>
+                            {searchResults.segments.map((segment, segIndex) => {
+                              if (!segment.path || segment.path.length === 0) return null;
+                              
+                              // Convert coordinates to Leaflet format [lat, lng]
+                              const positions = segment.path.map(coord => [
+                                coord.lat || coord.latitude,
+                                coord.lon || coord.longitude
+                              ]);
+                              
+                              // Style based on segment type
+                              const isTransit = segment.type === 'transit';
+                              const color = isTransit ? '#1976d2' : '#66bb6a';
+                              const weight = isTransit ? 4 : 3;
+                              const opacity = isTransit ? 0.8 : 0.6;
+                              
+                              return (
+                                <Polyline
+                                  key={segIndex}
+                                  positions={positions}
+                                  color={color}
+                                  weight={weight}
+                                  opacity={opacity}
+                                  lineCap="round"
+                                  lineJoin="round"
+                                  smoothFactor={1.0}
+                                />
+                              );
+                            })}
+                          </>
+                        )}
+                        
+                        {/* Fallback: Draw simple line between selected stops if no search results */}
+                        {!searchResults && fromStop && toStop && (
                           <Polyline
                             positions={[
                               [fromStop.latitude, fromStop.longitude],
@@ -429,6 +463,8 @@ const TripPlannerPage = () => {
                             color="#1976d2"
                             weight={3}
                             opacity={0.7}
+                            lineCap="round"
+                            lineJoin="round"
                             dashArray="10, 10"
                           />
                         )}
