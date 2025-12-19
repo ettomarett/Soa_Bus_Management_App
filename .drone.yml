@@ -16,188 +16,6 @@ steps:
         - push
         - pull_request
 
-  - name: build-push-user-service
-    image: docker:24-cli
-    depends_on:
-      - build-backend-services
-    environment:
-      GHCR_USERNAME:
-        from_secret: ghcr_username
-      GHCR_TOKEN:
-        from_secret: ghcr_token
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
-    commands:
-      - echo "🔐 Logging in to GHCR..."
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
-      - echo "🔍 Verifying JAR exists..."
-      - ls -la User/target/*.jar || (echo "❌ JAR not found!" && exit 1)
-      - echo "🔨 Building user-service image..."
-      - docker build -t ghcr.io/ettomarett/soa-bus-app-user-service:${DRONE_COMMIT_SHA:0:8} -t ghcr.io/ettomarett/soa-bus-app-user-service:latest -f User/Dockerfile .
-      - echo "📤 Pushing to GHCR..."
-      - docker push ghcr.io/ettomarett/soa-bus-app-user-service:${DRONE_COMMIT_SHA:0:8}
-      - docker push ghcr.io/ettomarett/soa-bus-app-user-service:latest
-    when:
-      event:
-        - push
-      branch:
-        - master
-
-  - name: build-push-ticket-service
-    image: docker:24-cli
-    depends_on:
-      - build-push-user-service
-    environment:
-      GHCR_USERNAME:
-        from_secret: ghcr_username
-      GHCR_TOKEN:
-        from_secret: ghcr_token
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
-    commands:
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
-      - echo "🔍 Verifying JAR exists..."
-      - ls -la Ticket/target/*.jar || (echo "❌ JAR not found!" && exit 1)
-      - docker build -t ghcr.io/ettomarett/soa-bus-app-ticket-service:${DRONE_COMMIT_SHA:0:8} -t ghcr.io/ettomarett/soa-bus-app-ticket-service:latest -f Ticket/Dockerfile .
-      - docker push ghcr.io/ettomarett/soa-bus-app-ticket-service:${DRONE_COMMIT_SHA:0:8}
-      - docker push ghcr.io/ettomarett/soa-bus-app-ticket-service:latest
-    when:
-      event:
-        - push
-      branch:
-        - master
-
-  - name: build-push-subscription-service
-    image: docker:24-cli
-    depends_on:
-      - build-push-ticket-service
-    environment:
-      GHCR_USERNAME:
-        from_secret: ghcr_username
-      GHCR_TOKEN:
-        from_secret: ghcr_token
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
-    commands:
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
-      - echo "🔍 Verifying JAR exists..."
-      - ls -la Subscription/target/*.jar || (echo "❌ JAR not found!" && exit 1)
-      - docker build -t ghcr.io/ettomarett/soa-bus-app-subscription-service:${DRONE_COMMIT_SHA:0:8} -t ghcr.io/ettomarett/soa-bus-app-subscription-service:latest -f Subscription/Dockerfile .
-      - docker push ghcr.io/ettomarett/soa-bus-app-subscription-service:${DRONE_COMMIT_SHA:0:8}
-      - docker push ghcr.io/ettomarett/soa-bus-app-subscription-service:latest
-    when:
-      event:
-        - push
-      branch:
-        - master
-
-  - name: build-push-route-service
-    image: docker:24-cli
-    depends_on:
-      - build-push-subscription-service
-    environment:
-      GHCR_USERNAME:
-        from_secret: ghcr_username
-      GHCR_TOKEN:
-        from_secret: ghcr_token
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
-    commands:
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
-      - echo "🔍 Verifying JAR exists..."
-      - ls -la Route/target/*.jar || (echo "❌ JAR not found!" && exit 1)
-      - docker build -t ghcr.io/ettomarett/soa-bus-app-route-service:${DRONE_COMMIT_SHA:0:8} -t ghcr.io/ettomarett/soa-bus-app-route-service:latest -f Route/Dockerfile .
-      - docker push ghcr.io/ettomarett/soa-bus-app-route-service:${DRONE_COMMIT_SHA:0:8}
-      - docker push ghcr.io/ettomarett/soa-bus-app-route-service:latest
-    when:
-      event:
-        - push
-      branch:
-        - master
-
-  - name: build-push-bus-geolocation-service
-    image: docker:24-cli
-    depends_on:
-      - build-push-route-service
-    environment:
-      GHCR_USERNAME:
-        from_secret: ghcr_username
-      GHCR_TOKEN:
-        from_secret: ghcr_token
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
-    commands:
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
-      - echo "🔍 Verifying JAR exists..."
-      - ls -la BusGeolocation/target/*.jar || (echo "❌ JAR not found!" && exit 1)
-      - docker build -t ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:${DRONE_COMMIT_SHA:0:8} -t ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:latest -f BusGeolocation/Dockerfile .
-      - echo "📤 Pushing to GHCR..."
-      - docker push ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:${DRONE_COMMIT_SHA:0:8}
-      - docker push ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:latest
-    when:
-      event:
-        - push
-      branch:
-        - master
-
-  - name: build-push-api-gateway
-    image: docker:24-cli
-    depends_on:
-      - build-push-bus-geolocation-service
-    environment:
-      GHCR_USERNAME:
-        from_secret: ghcr_username
-      GHCR_TOKEN:
-        from_secret: ghcr_token
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
-    commands:
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
-      - echo "🔍 Verifying JAR exists..."
-      - ls -la api-gateway/target/*.jar || (echo "❌ JAR not found!" && exit 1)
-      - echo "🔨 Building api-gateway image..."
-      - docker build -t ghcr.io/ettomarett/soa-bus-app-api-gateway:${DRONE_COMMIT_SHA:0:8} -t ghcr.io/ettomarett/soa-bus-app-api-gateway:latest -f api-gateway/Dockerfile .
-      - echo "📤 Pushing to GHCR..."
-      - docker push ghcr.io/ettomarett/soa-bus-app-api-gateway:${DRONE_COMMIT_SHA:0:8}
-      - docker push ghcr.io/ettomarett/soa-bus-app-api-gateway:latest
-    when:
-      event:
-        - push
-      branch:
-        - master
-
-  - name: build-push-frontend
-    image: docker:24-cli
-    depends_on:
-      - build-push-api-gateway
-    environment:
-      GHCR_USERNAME:
-        from_secret: ghcr_username
-      GHCR_TOKEN:
-        from_secret: ghcr_token
-    volumes:
-      - name: docker-sock
-        path: /var/run/docker.sock
-    commands:
-      - echo "🔐 Logging in to GHCR..."
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GHCR_USERNAME" --password-stdin
-      - echo "🔨 Building frontend image..."
-      - docker build -t ghcr.io/ettomarett/soa-bus-app-frontend:${DRONE_COMMIT_SHA:0:8} -t ghcr.io/ettomarett/soa-bus-app-frontend:latest -f Frontend/Dockerfile .
-      - echo "📤 Pushing to GHCR..."
-      - docker push ghcr.io/ettomarett/soa-bus-app-frontend:${DRONE_COMMIT_SHA:0:8}
-      - docker push ghcr.io/ettomarett/soa-bus-app-frontend:latest
-    when:
-      event:
-        - push
-      branch:
-        - master
-
   - name: deploy-to-vps
     image: alpine/git:latest
     environment:
@@ -224,28 +42,44 @@ steps:
           -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
           $${DRONE_WORKSPACE}/ \
           "$$VPS_USER@$$VPS_HOST:/opt/soa-bus-app/"
-      - echo "🚀 Deploying services on VPS..."
+      - echo "🚀 Building and deploying services on VPS..."
       - |
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" << EOF
           cd /opt/soa-bus-app
           set -a && source .env && set +a
           echo "🔐 Logging in to GHCR..."
           echo "${DOCKER_PASSWORD}" | docker login ghcr.io -u "${DOCKER_USERNAME}" --password-stdin
-          echo "📥 Pulling latest images..."
-          docker compose -f docker-compose.production.yml pull
+          echo "🔨 Building Docker images on VPS..."
+          COMMIT_SHA="${DRONE_COMMIT_SHA:0:8}"
+          docker build -t ghcr.io/ettomarett/soa-bus-app-user-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-user-service:latest -f User/Dockerfile .
+          docker build -t ghcr.io/ettomarett/soa-bus-app-ticket-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-ticket-service:latest -f Ticket/Dockerfile .
+          docker build -t ghcr.io/ettomarett/soa-bus-app-subscription-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-subscription-service:latest -f Subscription/Dockerfile .
+          docker build -t ghcr.io/ettomarett/soa-bus-app-route-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-route-service:latest -f Route/Dockerfile .
+          docker build -t ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:latest -f BusGeolocation/Dockerfile .
+          docker build -t ghcr.io/ettomarett/soa-bus-app-api-gateway:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-api-gateway:latest -f api-gateway/Dockerfile .
+          docker build --build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1 -t ghcr.io/ettomarett/soa-bus-app-frontend:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-frontend:latest -f Frontend/Dockerfile .
+          echo "📤 Pushing images to GHCR..."
+          docker push ghcr.io/ettomarett/soa-bus-app-user-service:\${COMMIT_SHA}
+          docker push ghcr.io/ettomarett/soa-bus-app-user-service:latest
+          docker push ghcr.io/ettomarett/soa-bus-app-ticket-service:\${COMMIT_SHA}
+          docker push ghcr.io/ettomarett/soa-bus-app-ticket-service:latest
+          docker push ghcr.io/ettomarett/soa-bus-app-subscription-service:\${COMMIT_SHA}
+          docker push ghcr.io/ettomarett/soa-bus-app-subscription-service:latest
+          docker push ghcr.io/ettomarett/soa-bus-app-route-service:\${COMMIT_SHA}
+          docker push ghcr.io/ettomarett/soa-bus-app-route-service:latest
+          docker push ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:\${COMMIT_SHA}
+          docker push ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:latest
+          docker push ghcr.io/ettomarett/soa-bus-app-api-gateway:\${COMMIT_SHA}
+          docker push ghcr.io/ettomarett/soa-bus-app-api-gateway:latest
+          docker push ghcr.io/ettomarett/soa-bus-app-frontend:\${COMMIT_SHA}
+          docker push ghcr.io/ettomarett/soa-bus-app-frontend:latest
           echo "🚀 Starting services..."
           docker compose -f docker-compose.production.yml up -d
           echo "✅ Deployment complete!"
           docker compose -f docker-compose.production.yml ps
         EOF
     depends_on:
-      - build-push-user-service
-      - build-push-ticket-service
-      - build-push-subscription-service
-      - build-push-route-service
-      - build-push-bus-geolocation-service
-      - build-push-api-gateway
-      - build-push-frontend
+      - build-backend-services
     when:
       event:
         - push
@@ -255,7 +89,4 @@ steps:
 volumes:
   - name: maven-cache
     temp: {}
-  - name: docker-sock
-    host:
-      path: /var/run/docker.sock
 
