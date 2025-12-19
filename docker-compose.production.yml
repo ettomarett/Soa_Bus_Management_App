@@ -9,6 +9,7 @@ services:
       - "traefik.http.routers.api-gateway.rule=Host(`nassar.clueleak.com`) && PathPrefix(`/api/v1`)"
       - "traefik.http.routers.api-gateway.entrypoints=websecure"
       - "traefik.http.routers.api-gateway.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api-gateway.priority=10"
       - "traefik.http.services.api-gateway.loadbalancer.server.port=8080"
       - "traefik.docker.network=traefik-network"
     networks:
