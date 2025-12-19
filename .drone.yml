@@ -3,14 +3,84 @@ type: docker
 name: build-and-deploy
 
 steps:
+  - name: detect-changed-services
+    image: alpine/git:latest
+    commands:
+      - apk add --no-cache bash
+      - |
+        echo "🔍 Detecting changed services..."
+        CHANGED_SERVICES=""
+        
+        # Get list of changed files compared to previous commit
+        if [ "$DRONE_COMMIT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+          CHANGED_FILES=$(git diff --name-only $DRONE_COMMIT_BEFORE $DRONE_COMMIT_AFTER || git diff --name-only HEAD~1 HEAD)
+        else
+          # First commit or no previous commit, check all files
+          CHANGED_FILES=$(git ls-files)
+        fi
+        
+        # Detect which services changed
+        echo "$CHANGED_FILES" | grep -q "^User/" && CHANGED_SERVICES="$CHANGED_SERVICES user-service" || true
+        echo "$CHANGED_FILES" | grep -q "^Ticket/" && CHANGED_SERVICES="$CHANGED_SERVICES ticket-service" || true
+        echo "$CHANGED_FILES" | grep -q "^Subscription/" && CHANGED_SERVICES="$CHANGED_SERVICES subscription-service" || true
+        echo "$CHANGED_FILES" | grep -q "^Route/" && CHANGED_SERVICES="$CHANGED_SERVICES route-service" || true
+        echo "$CHANGED_FILES" | grep -q "^BusGeolocation/" && CHANGED_SERVICES="$CHANGED_SERVICES bus-geolocation-service" || true
+        echo "$CHANGED_FILES" | grep -q "^api-gateway/" && CHANGED_SERVICES="$CHANGED_SERVICES api-gateway" || true
+        echo "$CHANGED_FILES" | grep -q "^Frontend/" && CHANGED_SERVICES="$CHANGED_SERVICES frontend" || true
+        echo "$CHANGED_FILES" | grep -q "^pom.xml\|^\.drone.yml\|^docker-compose" && CHANGED_SERVICES="all" || true
+        
+        # If no specific services changed but root files changed, rebuild all
+        if [ -z "$CHANGED_SERVICES" ]; then
+          CHANGED_SERVICES="all"
+        fi
+        
+        # Trim whitespace
+        CHANGED_SERVICES=$(echo $CHANGED_SERVICES | xargs)
+        
+        echo "📦 Changed services: $CHANGED_SERVICES"
+        echo "CHANGED_SERVICES=$CHANGED_SERVICES" > /tmp/changed_services.txt
+    when:
+      event:
+        - push
+        - pull_request
+
   - name: build-backend-services
     image: maven:3.9-eclipse-temurin-17
     volumes:
       - name: maven-cache
         path: /root/.m2
     commands:
-      - echo "Building all microservices..."
-      - mvn clean package -DskipTests
+      - apk add --no-cache bash || true
+      - |
+        echo "🔨 Building microservices..."
+        
+        # Read changed services
+        CHANGED_SERVICES=$(cat /tmp/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        
+        if [ "$CHANGED_SERVICES" = "all" ]; then
+          echo "📦 Building all services (root files changed or first build)..."
+          mvn clean package -DskipTests
+        else
+          echo "📦 Building only changed services: $CHANGED_SERVICES"
+          
+          # Build specific modules based on what changed
+          MAVEN_MODULES=""
+          echo "$CHANGED_SERVICES" | grep -q "user-service" && MAVEN_MODULES="$MAVEN_MODULES User" || true
+          echo "$CHANGED_SERVICES" | grep -q "ticket-service" && MAVEN_MODULES="$MAVEN_MODULES Ticket" || true
+          echo "$CHANGED_SERVICES" | grep -q "subscription-service" && MAVEN_MODULES="$MAVEN_MODULES Subscription" || true
+          echo "$CHANGED_SERVICES" | grep -q "route-service" && MAVEN_MODULES="$MAVEN_MODULES Route" || true
+          echo "$CHANGED_SERVICES" | grep -q "bus-geolocation-service" && MAVEN_MODULES="$MAVEN_MODULES BusGeolocation" || true
+          echo "$CHANGED_SERVICES" | grep -q "api-gateway" && MAVEN_MODULES="$MAVEN_MODULES api-gateway" || true
+          
+          if [ -n "$MAVEN_MODULES" ]; then
+            # Build only changed modules and their dependencies
+            mvn clean package -DskipTests -pl $MAVEN_MODULES -am
+          else
+            echo "✅ No backend services changed, skipping Maven build"
+          fi
+        fi
+    depends_on:
+      - detect-changed-services
     when:
       event:
         - push
@@ -44,41 +114,64 @@ steps:
           "$$VPS_USER@$$VPS_HOST:/opt/soa-bus-app/"
       - echo "🚀 Building and deploying services on VPS..."
       - |
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" << EOF
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
           set -a && source .env && set +a
+          
+          # Get changed services from previous step
+          CHANGED_SERVICES=$(cat /tmp/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+          
           echo "🔐 Logging in to GHCR..."
           echo "${DOCKER_PASSWORD}" | docker login ghcr.io -u "${DOCKER_USERNAME}" --password-stdin
-          echo "🔨 Building Docker images on VPS..."
+          
           COMMIT_SHA="${DRONE_COMMIT_SHA:0:8}"
-          docker build -t ghcr.io/ettomarett/soa-bus-app-user-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-user-service:latest -f User/Dockerfile .
-          docker build -t ghcr.io/ettomarett/soa-bus-app-ticket-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-ticket-service:latest -f Ticket/Dockerfile .
-          docker build -t ghcr.io/ettomarett/soa-bus-app-subscription-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-subscription-service:latest -f Subscription/Dockerfile .
-          docker build -t ghcr.io/ettomarett/soa-bus-app-route-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-route-service:latest -f Route/Dockerfile .
-          docker build -t ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:latest -f BusGeolocation/Dockerfile .
-          docker build -t ghcr.io/ettomarett/soa-bus-app-api-gateway:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-api-gateway:latest -f api-gateway/Dockerfile .
-          docker build --build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1 -t ghcr.io/ettomarett/soa-bus-app-frontend:\${COMMIT_SHA} -t ghcr.io/ettomarett/soa-bus-app-frontend:latest -f Frontend/Dockerfile .
-          echo "📤 Pushing images to GHCR..."
-          docker push ghcr.io/ettomarett/soa-bus-app-user-service:\${COMMIT_SHA}
-          docker push ghcr.io/ettomarett/soa-bus-app-user-service:latest
-          docker push ghcr.io/ettomarett/soa-bus-app-ticket-service:\${COMMIT_SHA}
-          docker push ghcr.io/ettomarett/soa-bus-app-ticket-service:latest
-          docker push ghcr.io/ettomarett/soa-bus-app-subscription-service:\${COMMIT_SHA}
-          docker push ghcr.io/ettomarett/soa-bus-app-subscription-service:latest
-          docker push ghcr.io/ettomarett/soa-bus-app-route-service:\${COMMIT_SHA}
-          docker push ghcr.io/ettomarett/soa-bus-app-route-service:latest
-          docker push ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:\${COMMIT_SHA}
-          docker push ghcr.io/ettomarett/soa-bus-app-bus-geolocation-service:latest
-          docker push ghcr.io/ettomarett/soa-bus-app-api-gateway:\${COMMIT_SHA}
-          docker push ghcr.io/ettomarett/soa-bus-app-api-gateway:latest
-          docker push ghcr.io/ettomarett/soa-bus-app-frontend:\${COMMIT_SHA}
-          docker push ghcr.io/ettomarett/soa-bus-app-frontend:latest
+          
+          # Function to build and push a service
+          build_and_push() {
+            local SERVICE_NAME=$1
+            local DOCKERFILE=$2
+            local IMAGE_NAME=$3
+            local BUILD_ARGS=$4
+            
+            echo "🔨 Building $SERVICE_NAME..."
+            if [ -n "$BUILD_ARGS" ]; then
+              docker build $BUILD_ARGS -t ghcr.io/ettomarett/$IMAGE_NAME:${COMMIT_SHA} -t ghcr.io/ettomarett/$IMAGE_NAME:latest -f $DOCKERFILE .
+            else
+              docker build -t ghcr.io/ettomarett/$IMAGE_NAME:${COMMIT_SHA} -t ghcr.io/ettomarett/$IMAGE_NAME:latest -f $DOCKERFILE .
+            fi
+            
+            echo "📤 Pushing $SERVICE_NAME..."
+            docker push ghcr.io/ettomarett/$IMAGE_NAME:${COMMIT_SHA}
+            docker push ghcr.io/ettomarett/$IMAGE_NAME:latest
+          }
+          
+          if [ "$CHANGED_SERVICES" = "all" ]; then
+            echo "🔨 Building all services..."
+            build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service"
+            build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service"
+            build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service"
+            build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service"
+            build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service"
+            build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway"
+            build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"
+          else
+            echo "🔨 Building only changed services: $CHANGED_SERVICES"
+            echo "$CHANGED_SERVICES" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" || true
+            echo "$CHANGED_SERVICES" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" || true
+            echo "$CHANGED_SERVICES" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" || true
+            echo "$CHANGED_SERVICES" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" || true
+            echo "$CHANGED_SERVICES" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" || true
+            echo "$CHANGED_SERVICES" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" || true
+            echo "$CHANGED_SERVICES" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
+          fi
+          
           echo "🚀 Starting services..."
           docker compose -f docker-compose.production.yml up -d
           echo "✅ Deployment complete!"
           docker compose -f docker-compose.production.yml ps
-        EOF
+        DEPLOYSCRIPT
     depends_on:
+      - detect-changed-services
       - build-backend-services
     when:
       event:
