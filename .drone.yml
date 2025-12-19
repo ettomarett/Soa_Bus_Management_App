@@ -170,6 +170,30 @@ steps:
           
           echo "📝 Using commit SHA: $COMMIT_SHA"
           
+          # Build JARs on VPS if needed (for services that require it)
+          echo "🔨 Building Java services with Maven on VPS..."
+          if command -v mvn >/dev/null 2>&1; then
+            if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
+              mvn clean package -DskipTests || echo "⚠️  Maven build failed, continuing with Docker build"
+            else
+              # Build only changed Java services
+              MAVEN_MODULES_VPS=""
+              echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS User" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Ticket" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Subscription" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Route" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS BusGeolocation" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "notification-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Notification" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS api-gateway" || true
+              if [ -n "$MAVEN_MODULES_VPS" ]; then
+                mvn clean package -DskipTests -pl $MAVEN_MODULES_VPS -am || echo "⚠️  Maven build failed, continuing with Docker build"
+              fi
+            fi
+            echo "✅ Maven build completed on VPS"
+          else
+            echo "⚠️  Maven not found on VPS, assuming JARs are already built"
+          fi
+          
           # Function to build and push a service
           build_and_push() {
             local SERVICE_NAME=$1
