@@ -121,6 +121,12 @@ steps:
           cd /opt/soa-bus-app
           set -a && source .env && set +a
           
+          # Get commit SHA from environment or git
+          COMMIT_SHA="${DRONE_COMMIT_SHA:0:8}"
+          if [ -z "\$COMMIT_SHA" ] || [ "\$COMMIT_SHA" = "" ]; then
+            COMMIT_SHA=\$(git rev-parse --short=8 HEAD 2>/dev/null || echo "latest")
+          fi
+          
           # Detect changed services on VPS using git
           CHANGED_SERVICES_VPS="all"
           if [ -d .git ]; then
@@ -146,7 +152,7 @@ steps:
           echo "🔐 Logging in to GHCR..."
           echo "${DOCKER_PASSWORD}" | docker login ghcr.io -u "${DOCKER_USERNAME}" --password-stdin
           
-          COMMIT_SHA="${DRONE_COMMIT_SHA:0:8}"
+          echo "📝 Using commit SHA: \$COMMIT_SHA"
           
           # Function to build and push a service
           build_and_push() {
@@ -187,10 +193,21 @@ steps:
             echo "\$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
           fi
           
-          echo "🚀 Starting services..."
-          docker compose -f docker-compose.production.yml up -d
+          # Use docker-compose.production.yml if it exists, otherwise use docker-compose.yml
+          if [ -f docker-compose.production.yml ]; then
+            COMPOSE_FILE="docker-compose.production.yml"
+          elif [ -f docker-compose.yml ]; then
+            COMPOSE_FILE="docker-compose.yml"
+            echo "⚠️  Using docker-compose.yml (production file not found)"
+          else
+            echo "❌ No docker-compose file found!"
+            exit 1
+          fi
+          
+          echo "🚀 Starting services with \$COMPOSE_FILE..."
+          docker compose -f \$COMPOSE_FILE up -d
           echo "✅ Deployment complete!"
-          docker compose -f docker-compose.production.yml ps
+          docker compose -f \$COMPOSE_FILE ps
         DEPLOYSCRIPT
     depends_on:
       - detect-changed-services
