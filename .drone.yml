@@ -117,64 +117,73 @@ steps:
         CHANGED_SERVICES=$(cat /tmp/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
         echo "📦 Changed services to build: $CHANGED_SERVICES"
         
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" << DEPLOYSCRIPT
+        # Export variables for SSH
+        export DOCKER_USERNAME_VAR="${DOCKER_USERNAME}"
+        export DOCKER_PASSWORD_VAR="${DOCKER_PASSWORD}"
+        export COMMIT_SHA_VAR="${DRONE_COMMIT_SHA:0:8}"
+        
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
-          set -a && source .env && set +a
+          
+          # Load .env if it exists
+          if [ -f .env ]; then
+            set -a && source .env && set +a
+          fi
           
           # Get commit SHA from environment or git
-          COMMIT_SHA="${DRONE_COMMIT_SHA:0:8}"
-          if [ -z "\$COMMIT_SHA" ] || [ "\$COMMIT_SHA" = "" ]; then
-            COMMIT_SHA=\$(git rev-parse --short=8 HEAD 2>/dev/null || echo "latest")
+          COMMIT_SHA="${COMMIT_SHA_VAR}"
+          if [ -z "$COMMIT_SHA" ] || [ "$COMMIT_SHA" = "" ]; then
+            COMMIT_SHA=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "latest")
           fi
           
           # Detect changed services on VPS using git
           CHANGED_SERVICES_VPS="all"
           if [ -d .git ]; then
-            PREV_COMMIT=\$(git rev-parse HEAD~1 2>/dev/null || echo "")
-            if [ -n "\$PREV_COMMIT" ]; then
-              CHANGED_FILES=\$(git diff --name-only \$PREV_COMMIT HEAD 2>/dev/null || echo "")
-              if [ -n "\$CHANGED_FILES" ]; then
+            PREV_COMMIT=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+            if [ -n "$PREV_COMMIT" ]; then
+              CHANGED_FILES=$(git diff --name-only $PREV_COMMIT HEAD 2>/dev/null || echo "")
+              if [ -n "$CHANGED_FILES" ]; then
                 CHANGED_SERVICES_VPS=""
-                echo "\$CHANGED_FILES" | grep -q "^User/" && CHANGED_SERVICES_VPS="\$CHANGED_SERVICES_VPS user-service" || true
-                echo "\$CHANGED_FILES" | grep -q "^Ticket/" && CHANGED_SERVICES_VPS="\$CHANGED_SERVICES_VPS ticket-service" || true
-                echo "\$CHANGED_FILES" | grep -q "^Subscription/" && CHANGED_SERVICES_VPS="\$CHANGED_SERVICES_VPS subscription-service" || true
-                echo "\$CHANGED_FILES" | grep -q "^Route/" && CHANGED_SERVICES_VPS="\$CHANGED_SERVICES_VPS route-service" || true
-                echo "\$CHANGED_FILES" | grep -q "^BusGeolocation/" && CHANGED_SERVICES_VPS="\$CHANGED_SERVICES_VPS bus-geolocation-service" || true
-                echo "\$CHANGED_FILES" | grep -q "^api-gateway/" && CHANGED_SERVICES_VPS="\$CHANGED_SERVICES_VPS api-gateway" || true
-                echo "\$CHANGED_FILES" | grep -q "^Frontend/" && CHANGED_SERVICES_VPS="\$CHANGED_SERVICES_VPS frontend" || true
-                echo "\$CHANGED_FILES" | grep -q "^pom.xml\|^\.drone.yml\|^docker-compose" && CHANGED_SERVICES_VPS="all" || true
-                CHANGED_SERVICES_VPS=\$(echo \$CHANGED_SERVICES_VPS | xargs)
-                [ -z "\$CHANGED_SERVICES_VPS" ] && CHANGED_SERVICES_VPS="all" || true
+                echo "$CHANGED_FILES" | grep -q "^User/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS user-service" || true
+                echo "$CHANGED_FILES" | grep -q "^Ticket/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS ticket-service" || true
+                echo "$CHANGED_FILES" | grep -q "^Subscription/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS subscription-service" || true
+                echo "$CHANGED_FILES" | grep -q "^Route/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS route-service" || true
+                echo "$CHANGED_FILES" | grep -q "^BusGeolocation/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS bus-geolocation-service" || true
+                echo "$CHANGED_FILES" | grep -q "^api-gateway/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS api-gateway" || true
+                echo "$CHANGED_FILES" | grep -q "^Frontend/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS frontend" || true
+                echo "$CHANGED_FILES" | grep -q "^pom.xml\|^\.drone.yml\|^docker-compose" && CHANGED_SERVICES_VPS="all" || true
+                CHANGED_SERVICES_VPS=$(echo $CHANGED_SERVICES_VPS | xargs)
+                [ -z "$CHANGED_SERVICES_VPS" ] && CHANGED_SERVICES_VPS="all" || true
               fi
             fi
           fi
           
           echo "🔐 Logging in to GHCR..."
-          echo "${DOCKER_PASSWORD}" | docker login ghcr.io -u "${DOCKER_USERNAME}" --password-stdin
+          echo "${DOCKER_PASSWORD_VAR}" | docker login ghcr.io -u "${DOCKER_USERNAME_VAR}" --password-stdin
           
-          echo "📝 Using commit SHA: \$COMMIT_SHA"
+          echo "📝 Using commit SHA: $COMMIT_SHA"
           
           # Function to build and push a service
           build_and_push() {
-            local SERVICE_NAME=\$1
-            local DOCKERFILE=\$2
-            local IMAGE_NAME=\$3
-            local BUILD_ARGS=\$4
-            local IMAGE_TAG="ghcr.io/ettomarett/\$IMAGE_NAME"
+            local SERVICE_NAME=$1
+            local DOCKERFILE=$2
+            local IMAGE_NAME=$3
+            local BUILD_ARGS=$4
+            local IMAGE_TAG="ghcr.io/ettomarett/$IMAGE_NAME"
             
-            echo "🔨 Building \$SERVICE_NAME..."
-            if [ -n "\$BUILD_ARGS" ]; then
-              docker build \$BUILD_ARGS -t "\${IMAGE_TAG}:\${COMMIT_SHA}" -t "\${IMAGE_TAG}:latest" -f "\$DOCKERFILE" .
+            echo "🔨 Building $SERVICE_NAME..."
+            if [ -n "$BUILD_ARGS" ]; then
+              docker build $BUILD_ARGS -t "${IMAGE_TAG}:${COMMIT_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             else
-              docker build -t "\${IMAGE_TAG}:\${COMMIT_SHA}" -t "\${IMAGE_TAG}:latest" -f "\$DOCKERFILE" .
+              docker build -t "${IMAGE_TAG}:${COMMIT_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             fi
             
-            echo "📤 Pushing \$SERVICE_NAME..."
-            docker push "\${IMAGE_TAG}:\${COMMIT_SHA}"
-            docker push "\${IMAGE_TAG}:latest"
+            echo "📤 Pushing $SERVICE_NAME..."
+            docker push "${IMAGE_TAG}:${COMMIT_SHA}"
+            docker push "${IMAGE_TAG}:latest"
           }
           
-          if [ "\$CHANGED_SERVICES_VPS" = "all" ]; then
+          if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
             echo "🔨 Building all services..."
             build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service"
             build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service"
@@ -184,14 +193,14 @@ steps:
             build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway"
             build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"
           else
-            echo "🔨 Building only changed services: \$CHANGED_SERVICES_VPS"
-            echo "\$CHANGED_SERVICES_VPS" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" || true
-            echo "\$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" || true
-            echo "\$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" || true
-            echo "\$CHANGED_SERVICES_VPS" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" || true
-            echo "\$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" || true
-            echo "\$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" || true
-            echo "\$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
+            echo "🔨 Building only changed services: $CHANGED_SERVICES_VPS"
+            echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" || true
+            echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" || true
+            echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" || true
+            echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" || true
+            echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" || true
+            echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" || true
+            echo "$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
           fi
           
           # Use docker-compose.production.yml if it exists, otherwise use docker-compose.yml
@@ -199,16 +208,16 @@ steps:
             COMPOSE_FILE="docker-compose.production.yml"
           elif [ -f docker-compose.yml ]; then
             COMPOSE_FILE="docker-compose.yml"
-            echo "⚠️  Using docker-compose.yml (production file not found)"
+            echo "Using docker-compose.yml (production file not found)"
           else
-            echo "❌ No docker-compose file found!"
+            echo "No docker-compose file found!"
             exit 1
           fi
           
-          echo "🚀 Starting services with \$COMPOSE_FILE..."
-          docker compose -f \$COMPOSE_FILE up -d
+          echo "🚀 Starting services with $COMPOSE_FILE..."
+          docker compose -f $COMPOSE_FILE up -d
           echo "✅ Deployment complete!"
-          docker compose -f \$COMPOSE_FILE ps
+          docker compose -f $COMPOSE_FILE ps
         DEPLOYSCRIPT
     depends_on:
       - detect-changed-services
