@@ -35,7 +35,8 @@ services:
 
 networks:
   microservices-network:
-    external: true
+    name: microservices-network
+    external: false  # Use the network from docker-compose.yml
   traefik-network:
     external: true
 
