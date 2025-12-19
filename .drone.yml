@@ -247,8 +247,10 @@ steps:
             exit 1
           fi
           
-          echo "🚀 Stopping existing containers..."
-          docker compose -f $COMPOSE_FILE down || echo "⚠️  No existing containers to stop"
+          echo "🚀 Stopping existing app containers (preserving Drone CI)..."
+          # Only stop containers defined in the compose file, not Drone CI containers
+          docker compose -f $COMPOSE_FILE stop || echo "⚠️  No existing containers to stop"
+          docker compose -f $COMPOSE_FILE rm -f || echo "⚠️  No containers to remove"
           
           echo "🚀 Starting services with $COMPOSE_FILE..."
           docker compose -f $COMPOSE_FILE up -d --remove-orphans
