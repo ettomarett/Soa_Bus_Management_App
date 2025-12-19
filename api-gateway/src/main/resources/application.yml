@@ -104,7 +104,16 @@ spring:
           filters:
             - StripPrefix=0
 
-        # WebSocket for Bus Geolocation
+        # WebSocket for Bus Geolocation - HTTP endpoint for SockJS info
+        - id: geolocation-websocket-info
+          uri: http://bus-geolocation-service:8086
+          predicates:
+            - Path=/api/v1/ws/info
+            - Method=GET
+          filters:
+            - StripPrefix=0
+
+        # WebSocket for Bus Geolocation - WebSocket connection
         - id: geolocation-websocket
           uri: ws://bus-geolocation-service:8086
           predicates:
