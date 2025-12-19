@@ -2,6 +2,9 @@ kind: pipeline
 type: docker
 name: build-and-deploy
 
+# Add timeout to prevent builds from running indefinitely
+timeout: 1h
+
 steps:
   - name: detect-changed-services
     image: alpine/git:latest
