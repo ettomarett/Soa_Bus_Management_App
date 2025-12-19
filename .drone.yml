@@ -39,7 +39,7 @@ steps:
         CHANGED_SERVICES=$(echo $CHANGED_SERVICES | xargs)
         
         echo "📦 Changed services: $CHANGED_SERVICES"
-        echo "CHANGED_SERVICES=$CHANGED_SERVICES" > ${DRONE_WORKSPACE}/changed_services.txt
+        echo "CHANGED_SERVICES=$CHANGED_SERVICES" > /drone/src/changed_services.txt
     when:
       event:
         - push
@@ -55,7 +55,7 @@ steps:
         echo "🔨 Building microservices..."
         
         # Read changed services
-        CHANGED_SERVICES=$(cat ${DRONE_WORKSPACE}/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
         echo "📦 Detected changed services: $CHANGED_SERVICES"
         
         if [ "$CHANGED_SERVICES" = "all" ]; then
