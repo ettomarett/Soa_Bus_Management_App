@@ -256,5 +256,6 @@ volumes:
   - name: maven-cache
     temp: {}
   - name: docker-sock
-    temp: {}
+    host:
+      path: /var/run/docker.sock
 
