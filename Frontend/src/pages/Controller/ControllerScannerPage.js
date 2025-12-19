@@ -26,8 +26,10 @@ import {
 } from '@mui/icons-material';
 import { QrReader } from 'react-qr-reader';
 import { validateTicket } from '../../services/ticketValidationService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const ControllerScannerPage = () => {
+    const { user } = useAuth();
     const [qrCode, setQrCode] = useState('');
     const [routeId, setRouteId] = useState('1');
     const [loading, setLoading] = useState(false);
@@ -41,12 +43,17 @@ const ControllerScannerPage = () => {
             return;
         }
 
+        if (!user || !user.id) {
+            setError('You must be logged in to validate tickets');
+            return;
+        }
+
         setLoading(true);
         setError(null);
         setValidationResult(null);
 
         try {
-            const result = await validateTicket(code.trim(), parseInt(routeId));
+            const result = await validateTicket(code.trim(), parseInt(routeId), user.id);
             setValidationResult(result);
             setScannerOpen(false);
         } catch (err) {

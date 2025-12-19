@@ -30,6 +30,7 @@ public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionMapper subscriptionMapper;
+    private final NotificationClient notificationClient;
 
     // Pricing constants
     private static final BigDecimal MONTHLY_PRICE = new BigDecimal("29.99");
@@ -90,7 +91,38 @@ public class SubscriptionService {
         Subscription savedSubscription = subscriptionRepository.save(subscription);
         log.info("Created subscription with id: {} for user: {}", savedSubscription.getId(), request.getUserId());
 
+        // Send notification to user about subscription activation
+        sendSubscriptionNotification(savedSubscription, request.getUserId());
+
         return subscriptionMapper.toResponse(savedSubscription);
+    }
+
+    private void sendSubscriptionNotification(Subscription subscription, Long userId) {
+        String subscriptionTypeName = subscription.getSubscriptionType().toString().replace("_", " ");
+        String message = String.format(
+            "Your %s subscription has been activated successfully! " +
+            "It is valid from %s to %s. " +
+            "You can now enjoy unlimited travel during this period.",
+            subscriptionTypeName,
+            subscription.getStartDate().toLocalDate(),
+            subscription.getEndDate().toLocalDate()
+        );
+
+        String metadata = String.format(
+            "{\"subscriptionId\":%d,\"type\":\"%s\",\"price\":%.2f}",
+            subscription.getId(),
+            subscription.getSubscriptionType(),
+            subscription.getPrice()
+        );
+
+        notificationClient.sendNotification(
+            userId,
+            userId, // System sends notification to user
+            "Subscription Activated",
+            message,
+            "SUBSCRIPTION_ACTIVATED",
+            metadata
+        );
     }
 
     public SubscriptionResponse updateSubscription(Long id, UpdateSubscriptionRequest request) {

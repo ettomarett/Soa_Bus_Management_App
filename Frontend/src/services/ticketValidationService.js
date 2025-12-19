@@ -3,13 +3,14 @@ import axios from 'axios';
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 // Validate a ticket by QR code
-export const validateTicket = async (qrCode, routeId) => {
+export const validateTicket = async (qrCode, routeId, controllerId) => {
     try {
         const response = await axios.post(
             `${API_BASE_URL}/tickets/validate`,
             {
                 qrCode,
                 routeId,
+                controllerId, // ID of the controller validating the ticket
             },
             {
                 headers: {

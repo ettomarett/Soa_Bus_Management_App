@@ -33,6 +33,7 @@ public class OrderService {
     private final TicketRepository ticketRepository;
     private final OrderMapper orderMapper;
     private final QRCodeGenerator qrCodeGenerator;
+    private final NotificationClient notificationClient;
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -70,6 +71,9 @@ public class OrderService {
         order = orderRepository.save(order);
 
         log.info("Order created with order number: {}", orderNumber);
+
+        // Send notification to user about ticket purchase
+        sendTicketPurchaseNotification(order, request.getUserId());
 
         return orderMapper.toResponse(order);
     }
@@ -212,5 +216,46 @@ public class OrderService {
             case DAY_PASS -> Integer.MAX_VALUE;
             case MULTI_RIDE -> 10;
         };
+    }
+
+    private void sendTicketPurchaseNotification(Order order, Long userId) {
+        int ticketCount = order.getTickets().size();
+        String ticketWord = ticketCount == 1 ? "ticket" : "tickets";
+        
+        StringBuilder ticketDetails = new StringBuilder();
+        for (Ticket ticket : order.getTickets()) {
+            ticketDetails.append(String.format("- %s (Valid until: %s)\n", 
+                ticket.getTicketType().toString().replace("_", " "),
+                ticket.getValidUntil().toLocalDate()));
+        }
+
+        String message = String.format(
+            "Your order #%s has been confirmed! " +
+            "You have purchased %d %s for a total of %.2f. " +
+            "\n\nTicket Details:\n%s" +
+            "\nYou can view and download your tickets from the Tickets page.",
+            order.getOrderNumber(),
+            ticketCount,
+            ticketWord,
+            order.getTotalAmount().doubleValue(),
+            ticketDetails.toString()
+        );
+
+        String metadata = String.format(
+            "{\"orderId\":%d,\"orderNumber\":\"%s\",\"ticketCount\":%d,\"totalAmount\":%.2f}",
+            order.getId(),
+            order.getOrderNumber(),
+            ticketCount,
+            order.getTotalAmount().doubleValue()
+        );
+
+        notificationClient.sendNotification(
+            userId,
+            userId, // System sends notification to user
+            "Tickets Purchased Successfully",
+            message,
+            "TICKET_PURCHASED",
+            metadata
+        );
     }
 }

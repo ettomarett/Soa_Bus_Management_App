@@ -24,6 +24,7 @@ import {
   Support,
   Settings,
   QrCodeScanner,
+  Notifications,
 } from '@mui/icons-material';
 
 const SIDEBAR_WIDTH = 280;
@@ -73,6 +74,13 @@ const menuItems = [
     description: 'Scan & validate tickets',
     badge: 'Controller',
     roles: ['CONTROLLER', 'ADMIN']
+  },
+  {
+    text: 'Notifications',
+    icon: <Notifications />,
+    path: '/notifications',
+    description: 'View your notifications',
+    roles: ['PASSENGER', 'CONTROLLER', 'ADMIN']
   },
 ];
 

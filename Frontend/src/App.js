@@ -20,6 +20,7 @@ import SupportPage from './pages/Support/SupportPage';
 import SettingsPage from './pages/Settings/SettingsPage';
 import NotFoundPage from './pages/NotFound/NotFoundPage';
 import ControllerScannerPage from './pages/Controller/ControllerScannerPage';
+import NotificationsPage from './pages/Notifications/NotificationsPage';
 
 // Routes updated to include Live Map and Trip Planner
 function App() {
@@ -73,6 +74,7 @@ function App() {
           <Route path="profile" element={<ProfilePage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="controller" element={<ControllerScannerPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
           <Route path="support" element={<SupportPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

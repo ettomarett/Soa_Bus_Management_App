@@ -27,6 +27,7 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final TicketMapper ticketMapper;
     private final QRCodeGenerator qrCodeGenerator;
+    private final NotificationClient notificationClient;
 
     @Transactional(readOnly = true)
     public TicketResponse getTicketById(Long id) {
@@ -61,8 +62,21 @@ public class TicketService {
         Ticket ticket = ticketRepository.findByQrCode(request.getQrCode())
                 .orElseThrow(() -> new InvalidTicketException("Invalid QR code"));
 
+        Long passengerId = ticket.getUserId();
+        Long controllerId = request.getControllerId();
+
         // Validate route
         if (!ticket.getRouteId().equals(request.getRouteId())) {
+            // Send notification to passenger about invalid route
+            notificationClient.sendNotification(
+                    passengerId,
+                    controllerId,
+                    "Ticket Validation Failed",
+                    "Your ticket was checked and found to be invalid for route " + request.getRouteId() + ".",
+                    "TICKET_VALIDATION_FAILED",
+                    "{\"ticketId\":" + ticket.getId() + ",\"routeId\":" + request.getRouteId() + "}"
+            );
+            
             return TicketValidationResponse.builder()
                     .valid(false)
                     .message("Ticket is not valid for this route")
@@ -73,6 +87,16 @@ public class TicketService {
         // Validate schedule if provided
         if (request.getScheduleId() != null && ticket.getScheduleId() != null
                 && !ticket.getScheduleId().equals(request.getScheduleId())) {
+            // Send notification to passenger about invalid schedule
+            notificationClient.sendNotification(
+                    passengerId,
+                    controllerId,
+                    "Ticket Validation Failed",
+                    "Your ticket was checked and found to be invalid for the selected schedule.",
+                    "TICKET_VALIDATION_FAILED",
+                    "{\"ticketId\":" + ticket.getId() + ",\"scheduleId\":" + request.getScheduleId() + "}"
+            );
+            
             return TicketValidationResponse.builder()
                     .valid(false)
                     .message("Ticket is not valid for this schedule")
@@ -91,12 +115,32 @@ public class TicketService {
                     || ticket.getUsageCount() >= ticket.getMaxUsage();
 
             if (isTimeValid && isUsageInvalid) {
+                // Send notification about already validated ticket
+                notificationClient.sendNotification(
+                        passengerId,
+                        controllerId,
+                        "Ticket Already Validated",
+                        "Your ticket was checked and confirmed as already validated.",
+                        "TICKET_VALIDATION_SUCCESS",
+                        "{\"ticketId\":" + ticket.getId() + "}"
+                );
+                
                 return TicketValidationResponse.builder()
                         .valid(true)
                         .message("Ticket already validated")
                         .ticket(ticketMapper.toResponse(ticket))
                         .build();
             }
+
+            // Send notification about invalid ticket
+            notificationClient.sendNotification(
+                    passengerId,
+                    controllerId,
+                    "Ticket Validation Failed",
+                    message,
+                    "TICKET_VALIDATION_FAILED",
+                    "{\"ticketId\":" + ticket.getId() + "}"
+            );
 
             return TicketValidationResponse.builder()
                     .valid(false)
@@ -110,6 +154,16 @@ public class TicketService {
         ticketRepository.save(ticket);
 
         log.info("Ticket {} used successfully", ticket.getQrCode());
+
+        // Send success notification to passenger
+        notificationClient.sendNotification(
+                passengerId,
+                controllerId,
+                "Ticket Validated Successfully",
+                "Your ticket has been validated and used successfully on route " + request.getRouteId() + ".",
+                "TICKET_VALIDATION_SUCCESS",
+                "{\"ticketId\":" + ticket.getId() + ",\"routeId\":" + request.getRouteId() + "}"
+        );
 
         return TicketValidationResponse.builder()
                 .valid(true)

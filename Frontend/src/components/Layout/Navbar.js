@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -21,12 +21,32 @@ import {
   Person,
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
+import notificationService from '../../services/notificationService';
 
 const Navbar = ({ onSidebarToggle }) => {
   const [anchorEl, setAnchorEl] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    if (user?.id) {
+      loadUnreadCount();
+      // Refresh count every 30 seconds
+      const interval = setInterval(loadUnreadCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const loadUnreadCount = async () => {
+    try {
+      const count = await notificationService.getUnreadCount(user.id);
+      setUnreadCount(count);
+    } catch (err) {
+      console.error('Failed to load unread count:', err);
+    }
+  };
 
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
@@ -64,6 +84,10 @@ const Navbar = ({ onSidebarToggle }) => {
         return 'Profile';
       case '/analytics':
         return 'Analytics';
+      case '/controller':
+        return 'Controller Scanner';
+      case '/notifications':
+        return 'Notifications';
       case '/support':
         return 'Support';
       case '/settings':
@@ -126,8 +150,11 @@ const Navbar = ({ onSidebarToggle }) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* Notifications */}
           <Tooltip title="Notifications">
-            <IconButton color="inherit">
-              <Badge badgeContent={3} color="secondary">
+            <IconButton 
+              color="inherit"
+              onClick={() => navigate('/notifications')}
+            >
+              <Badge badgeContent={unreadCount} color="error">
                 <Notifications />
               </Badge>
             </IconButton>

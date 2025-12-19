@@ -20,4 +20,7 @@ public class ValidateTicketRequest {
     private Long routeId;
 
     private Long scheduleId;
+
+    @NotNull(message = "Controller ID is required")
+    private Long controllerId; // ID of the controller validating the ticket
 }
