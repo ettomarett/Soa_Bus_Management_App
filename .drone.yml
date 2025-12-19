@@ -25,6 +25,7 @@ steps:
         echo "$CHANGED_FILES" | grep -q "^Subscription/" && CHANGED_SERVICES="$CHANGED_SERVICES subscription-service" || true
         echo "$CHANGED_FILES" | grep -q "^Route/" && CHANGED_SERVICES="$CHANGED_SERVICES route-service" || true
         echo "$CHANGED_FILES" | grep -q "^BusGeolocation/" && CHANGED_SERVICES="$CHANGED_SERVICES bus-geolocation-service" || true
+        echo "$CHANGED_FILES" | grep -q "^Notification/" && CHANGED_SERVICES="$CHANGED_SERVICES notification-service" || true
         echo "$CHANGED_FILES" | grep -q "^api-gateway/" && CHANGED_SERVICES="$CHANGED_SERVICES api-gateway" || true
         echo "$CHANGED_FILES" | grep -q "^Frontend/" && CHANGED_SERVICES="$CHANGED_SERVICES frontend" || true
         echo "$CHANGED_FILES" | grep -q "^pom.xml\|^\.drone.yml\|^docker-compose" && CHANGED_SERVICES="all" || true
@@ -69,6 +70,7 @@ steps:
           echo "$CHANGED_SERVICES" | grep -q "subscription-service" && MAVEN_MODULES="$MAVEN_MODULES Subscription" || true
           echo "$CHANGED_SERVICES" | grep -q "route-service" && MAVEN_MODULES="$MAVEN_MODULES Route" || true
           echo "$CHANGED_SERVICES" | grep -q "bus-geolocation-service" && MAVEN_MODULES="$MAVEN_MODULES BusGeolocation" || true
+          echo "$CHANGED_SERVICES" | grep -q "notification-service" && MAVEN_MODULES="$MAVEN_MODULES Notification" || true
           echo "$CHANGED_SERVICES" | grep -q "api-gateway" && MAVEN_MODULES="$MAVEN_MODULES api-gateway" || true
           
           if [ -n "$MAVEN_MODULES" ]; then
@@ -149,6 +151,7 @@ steps:
                 echo "$CHANGED_FILES" | grep -q "^Subscription/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS subscription-service" || true
                 echo "$CHANGED_FILES" | grep -q "^Route/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS route-service" || true
                 echo "$CHANGED_FILES" | grep -q "^BusGeolocation/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS bus-geolocation-service" || true
+                echo "$CHANGED_FILES" | grep -q "^Notification/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS notification-service" || true
                 echo "$CHANGED_FILES" | grep -q "^api-gateway/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS api-gateway" || true
                 echo "$CHANGED_FILES" | grep -q "^Frontend/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS frontend" || true
                 echo "$CHANGED_FILES" | grep -q "^pom.xml\|^\.drone.yml\|^docker-compose" && CHANGED_SERVICES_VPS="all" || true
@@ -183,25 +186,27 @@ steps:
             docker push "${IMAGE_TAG}:latest"
           }
           
-          if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
-            echo "🔨 Building all services..."
-            build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service"
-            build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service"
-            build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service"
-            build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service"
-            build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service"
-            build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway"
-            build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"
-          else
-            echo "🔨 Building only changed services: $CHANGED_SERVICES_VPS"
-            echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" || true
-            echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" || true
-            echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" || true
-            echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" || true
-            echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" || true
-            echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" || true
-            echo "$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
-          fi
+            if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
+              echo "🔨 Building all services..."
+              build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service"
+              build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service"
+              build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service"
+              build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service"
+              build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service"
+              build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service"
+              build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway"
+              build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"
+            else
+              echo "🔨 Building only changed services: $CHANGED_SERVICES_VPS"
+              echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "notification-service" && build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
+            fi
           
           # Use docker-compose.production.yml if it exists, otherwise use docker-compose.yml
           if [ -f docker-compose.production.yml ]; then
