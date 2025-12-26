@@ -147,10 +147,12 @@ steps:
           fi
           
           # Get commit SHA from environment or git
-          COMMIT_SHA="${COMMIT_SHA_VAR}"
-          if [ -z "$COMMIT_SHA" ] || [ "$COMMIT_SHA" = "" ]; then
+          if [ -n "$COMMIT_SHA_VAR" ] && [ "$COMMIT_SHA_VAR" != "" ]; then
+            COMMIT_SHA="$COMMIT_SHA_VAR"
+          else
             COMMIT_SHA=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "latest")
           fi
+          echo "📝 Commit SHA: $COMMIT_SHA (from COMMIT_SHA_VAR: $COMMIT_SHA_VAR)"
           
           # Detect changed services on VPS using git
           CHANGED_SERVICES_VPS="all"
@@ -210,17 +212,19 @@ steps:
             local DOCKERFILE=$2
             local IMAGE_NAME=$3
             local BUILD_ARGS=$4
+            # Use COMMIT_SHA from parent scope
             local IMAGE_TAG="ghcr.io/ettomarett/$IMAGE_NAME"
+            local TAG_SHA="${COMMIT_SHA:-latest}"
             
-            echo "🔨 Building $SERVICE_NAME..."
+            echo "🔨 Building $SERVICE_NAME with tag ${IMAGE_TAG}:${TAG_SHA}..."
             if [ -n "$BUILD_ARGS" ]; then
-              docker build $BUILD_ARGS -t "${IMAGE_TAG}:${COMMIT_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
+              docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             else
-              docker build -t "${IMAGE_TAG}:${COMMIT_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
+              docker build -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             fi
             
             echo "📤 Pushing $SERVICE_NAME..."
-            docker push "${IMAGE_TAG}:${COMMIT_SHA}"
+            docker push "${IMAGE_TAG}:${TAG_SHA}"
             docker push "${IMAGE_TAG}:latest"
           }
           
