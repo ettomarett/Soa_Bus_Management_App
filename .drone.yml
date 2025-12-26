@@ -2,9 +2,6 @@ kind: pipeline
 type: docker
 name: build-and-deploy
 
-# Add timeout to prevent builds from running indefinitely
-timeout: 1h
-
 # Enable cancellation support
 concurrency:
   limit: 1
