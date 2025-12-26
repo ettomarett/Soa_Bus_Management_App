@@ -212,43 +212,41 @@ steps:
             local DOCKERFILE=$2
             local IMAGE_NAME=$3
             local BUILD_ARGS=$4
+            local COMMIT_TAG="${5:-latest}"
             local IMAGE_TAG="ghcr.io/ettomarett/$IMAGE_NAME"
-            # COMMIT_SHA is set in parent scope, use it directly
-            local TAG_SHA="$COMMIT_SHA"
-            [ -z "$TAG_SHA" ] && TAG_SHA="latest"
             
-            echo "🔨 Building $SERVICE_NAME with tag ${IMAGE_TAG}:${TAG_SHA}..."
+            echo "🔨 Building $SERVICE_NAME with tag ${IMAGE_TAG}:${COMMIT_TAG}..."
             if [ -n "$BUILD_ARGS" ]; then
-              docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
+              docker build $BUILD_ARGS -t "${IMAGE_TAG}:${COMMIT_TAG}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             else
-              docker build -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
+              docker build -t "${IMAGE_TAG}:${COMMIT_TAG}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             fi
             
             echo "📤 Pushing $SERVICE_NAME..."
-            docker push "${IMAGE_TAG}:${TAG_SHA}"
+            docker push "${IMAGE_TAG}:${COMMIT_TAG}"
             docker push "${IMAGE_TAG}:latest"
           }
           
             if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
               echo "🔨 Building all services..."
-              build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service"
-              build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service"
-              build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service"
-              build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service"
-              build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service"
-              build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service"
-              build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway"
-              build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"
+              build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" "" "$COMMIT_SHA"
+              build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" "" "$COMMIT_SHA"
+              build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" "" "$COMMIT_SHA"
+              build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" "" "$COMMIT_SHA"
+              build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" "" "$COMMIT_SHA"
+              build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service" "" "$COMMIT_SHA"
+              build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" "" "$COMMIT_SHA"
+              build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" "$COMMIT_SHA"
             else
               echo "🔨 Building only changed services: $CHANGED_SERVICES_VPS"
-              echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "notification-service" && build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" "" "$COMMIT_SHA" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" "" "$COMMIT_SHA" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" "" "$COMMIT_SHA" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" "" "$COMMIT_SHA" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" "" "$COMMIT_SHA" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "notification-service" && build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service" "" "$COMMIT_SHA" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" "" "$COMMIT_SHA" || true
+              echo "$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" "$COMMIT_SHA" || true
             fi
           
           # Use docker-compose.production.yml if it exists, otherwise use docker-compose.yml
