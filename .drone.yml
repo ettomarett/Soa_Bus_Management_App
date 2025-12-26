@@ -258,6 +258,21 @@ steps:
           
           echo "🚀 Starting services with $COMPOSE_FILE..."
           docker compose -f $COMPOSE_FILE up -d --remove-orphans
+          
+          echo "🔧 Applying database migrations..."
+          # Wait for databases to be ready
+          sleep 10
+          
+          # Fix users_role_check constraint to include CONTROLLER role
+          if docker ps | grep -q "user-service-postgres"; then
+            echo "Applying User service database migration..."
+            docker exec user-service-postgres psql -U postgres -d user_db -c "
+              ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+              ALTER TABLE users ADD CONSTRAINT users_role_check 
+                CHECK (role IN ('PASSENGER', 'DRIVER', 'CONTROLLER', 'ADMIN'));
+            " || echo "⚠️  Migration already applied or database not ready"
+          fi
+          
           echo "✅ Deployment complete!"
           docker compose -f $COMPOSE_FILE ps
         DEPLOYSCRIPT
