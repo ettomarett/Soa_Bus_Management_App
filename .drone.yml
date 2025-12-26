@@ -212,13 +212,10 @@ steps:
             local DOCKERFILE=$2
             local IMAGE_NAME=$3
             local BUILD_ARGS=$4
-            # COMMIT_SHA should be available from parent scope
             local IMAGE_TAG="ghcr.io/ettomarett/$IMAGE_NAME"
-            # Use COMMIT_SHA from parent scope, fallback to latest
-            local TAG_SHA="${COMMIT_SHA}"
-            if [ -z "$TAG_SHA" ] || [ "$TAG_SHA" = "" ]; then
-              TAG_SHA="latest"
-            fi
+            # COMMIT_SHA is set in parent scope, use it directly
+            local TAG_SHA="$COMMIT_SHA"
+            [ -z "$TAG_SHA" ] && TAG_SHA="latest"
             
             echo "🔨 Building $SERVICE_NAME with tag ${IMAGE_TAG}:${TAG_SHA}..."
             if [ -n "$BUILD_ARGS" ]; then
