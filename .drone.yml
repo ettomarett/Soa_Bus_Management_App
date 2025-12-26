@@ -134,7 +134,11 @@ steps:
         export DOCKER_PASSWORD_VAR="${DOCKER_PASSWORD}"
         export COMMIT_SHA_VAR="${DRONE_COMMIT_SHA:0:8}"
         
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" bash -s << 'DEPLOYSCRIPT'
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
+          DOCKER_USERNAME_VAR="${DOCKER_USERNAME}" \
+          DOCKER_PASSWORD_VAR="${DOCKER_PASSWORD}" \
+          COMMIT_SHA_VAR="${DRONE_COMMIT_SHA:0:8}" \
+          bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
           
           # Load .env if it exists
