@@ -231,8 +231,14 @@ steps:
             echo "🔍 DEBUG: COMMIT_SHA value before TAG_SHA assignment: '$COMMIT_SHA'"
             
             # Use COMMIT_SHA directly (it's exported in parent scope)
-            # Reference it without 'local' to ensure we get the exported value
-            TAG_SHA="${COMMIT_SHA:-latest}"
+            # Explicitly check if COMMIT_SHA is set, otherwise use latest
+            if [ -n "$COMMIT_SHA" ] && [ "$COMMIT_SHA" != "" ]; then
+              TAG_SHA="$COMMIT_SHA"
+              echo "🔍 DEBUG: Using COMMIT_SHA for TAG_SHA: '$TAG_SHA'"
+            else
+              TAG_SHA="latest"
+              echo "🔍 DEBUG: COMMIT_SHA is empty, using 'latest' for TAG_SHA"
+            fi
             
             echo "🔍 DEBUG: After TAG_SHA assignment - TAG_SHA='$TAG_SHA', COMMIT_SHA='$COMMIT_SHA'"
             echo "🔍 DEBUG: Full tag will be: ${IMAGE_TAG}:${TAG_SHA}"
