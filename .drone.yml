@@ -48,6 +48,7 @@ steps:
       event:
         - push
         - pull_request
+        - custom
 
   - name: build-backend-services
     image: maven:3.9-eclipse-temurin-17
@@ -94,6 +95,7 @@ steps:
       event:
         - push
         - pull_request
+        - custom
 
   - name: deploy-to-vps
     image: alpine/git:latest
