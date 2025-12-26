@@ -284,6 +284,7 @@ steps:
     when:
       event:
         - push
+        - custom
       branch:
         - master
 
