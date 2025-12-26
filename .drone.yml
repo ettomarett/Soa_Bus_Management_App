@@ -147,13 +147,18 @@ steps:
           fi
           
           # Get commit SHA from environment or git
+          echo "🔍 DEBUG: Before setting COMMIT_SHA - COMMIT_SHA_VAR='$COMMIT_SHA_VAR'"
           if [ -n "$COMMIT_SHA_VAR" ] && [ "$COMMIT_SHA_VAR" != "" ]; then
             COMMIT_SHA="$COMMIT_SHA_VAR"
+            echo "🔍 DEBUG: Set COMMIT_SHA from COMMIT_SHA_VAR: '$COMMIT_SHA'"
           else
             COMMIT_SHA=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "latest")
+            echo "🔍 DEBUG: Set COMMIT_SHA from git: '$COMMIT_SHA'"
           fi
           # Export COMMIT_SHA so it's available to all functions
           export COMMIT_SHA
+          echo "🔍 DEBUG: After export - COMMIT_SHA='$COMMIT_SHA', checking export..."
+          env | grep COMMIT_SHA || echo "⚠️  COMMIT_SHA not found in environment"
           echo "📝 Commit SHA: $COMMIT_SHA (from COMMIT_SHA_VAR: $COMMIT_SHA_VAR)"
           
           # Detect changed services on VPS using git
@@ -183,6 +188,8 @@ steps:
           echo "${DOCKER_PASSWORD_VAR}" | docker login ghcr.io -u "${DOCKER_USERNAME_VAR}" --password-stdin
           
           echo "📝 Using commit SHA: $COMMIT_SHA"
+          echo "🔍 DEBUG: Before function definition - COMMIT_SHA='$COMMIT_SHA'"
+          echo "🔍 DEBUG: Checking if COMMIT_SHA is exported: $(export -p | grep COMMIT_SHA || echo 'Not exported')"
           
           # Build JARs on VPS if needed (for services that require it)
           echo "🔨 Building Java services with Maven on VPS..."
@@ -210,17 +217,25 @@ steps:
           
           # Function to build and push a service
           build_and_push() {
+            echo "🔍 DEBUG: build_and_push called with args: $1, $2, $3, $4"
+            echo "🔍 DEBUG: Inside function - COMMIT_SHA='$COMMIT_SHA'"
+            echo "🔍 DEBUG: Inside function - checking env: $(env | grep COMMIT_SHA || echo 'COMMIT_SHA not in env')"
+            
             local SERVICE_NAME=$1
             local DOCKERFILE=$2
             local IMAGE_NAME=$3
             local BUILD_ARGS=$4
             local IMAGE_TAG="ghcr.io/ettomarett/$IMAGE_NAME"
+            
+            echo "🔍 DEBUG: After local vars - IMAGE_TAG='$IMAGE_TAG'"
+            echo "🔍 DEBUG: COMMIT_SHA value before TAG_SHA assignment: '$COMMIT_SHA'"
+            
             # Use COMMIT_SHA directly (it's exported in parent scope)
             # Reference it without 'local' to ensure we get the exported value
-            local TAG_SHA="${COMMIT_SHA:-latest}"
+            TAG_SHA="${COMMIT_SHA:-latest}"
             
-            # Debug: Show what we're using
-            echo "🔍 DEBUG: COMMIT_SHA='$COMMIT_SHA', TAG_SHA='$TAG_SHA', IMAGE_TAG='$IMAGE_TAG'"
+            echo "🔍 DEBUG: After TAG_SHA assignment - TAG_SHA='$TAG_SHA', COMMIT_SHA='$COMMIT_SHA'"
+            echo "🔍 DEBUG: Full tag will be: ${IMAGE_TAG}:${TAG_SHA}"
             echo "🔨 Building $SERVICE_NAME with tag ${IMAGE_TAG}:${TAG_SHA}..."
             if [ -n "$BUILD_ARGS" ]; then
               docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
