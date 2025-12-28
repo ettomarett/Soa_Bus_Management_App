@@ -245,9 +245,13 @@ steps:
         echo "📦 Changed services to build: $CHANGED_SERVICES"
         
         # Debug: Check if credentials are available (without printing values)
+        echo "🔍 Checking Docker credentials..."
+        echo "   DOCKER_USERNAME is ${DOCKER_USERNAME:+SET}${DOCKER_USERNAME:-NOT SET}"
+        echo "   DOCKER_PASSWORD is ${DOCKER_PASSWORD:+SET}${DOCKER_PASSWORD:-NOT SET}"
         if [ -z "$$DOCKER_USERNAME" ] || [ -z "$$DOCKER_PASSWORD" ]; then
           echo "⚠️  WARNING: DOCKER_USERNAME or DOCKER_PASSWORD is empty!"
-          echo "   This might indicate secrets are not configured in Drone CI"
+          echo "   Please verify that organization secrets 'ghcr_username' and 'ghcr_token' exist"
+          echo "   and are accessible to this repository"
         else
           echo "✅ Docker credentials are available"
         fi
