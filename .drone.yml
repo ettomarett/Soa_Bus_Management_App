@@ -245,16 +245,21 @@ steps:
         echo "📦 Changed services to build: $CHANGED_SERVICES"
         
         # Debug: Check if credentials are available (without printing values)
-        if [ -z "${DOCKER_USERNAME}" ] || [ -z "${DOCKER_PASSWORD}" ]; then
+        if [ -z "$$DOCKER_USERNAME" ] || [ -z "$$DOCKER_PASSWORD" ]; then
           echo "⚠️  WARNING: DOCKER_USERNAME or DOCKER_PASSWORD is empty!"
+          echo "   This might indicate secrets are not configured in Drone CI"
         else
           echo "✅ Docker credentials are available"
         fi
         
+        # Extract short commit SHA (first 8 characters)
+        COMMIT_SHA_FULL="$$DRONE_COMMIT_SHA"
+        COMMIT_SHA_SHORT="$${COMMIT_SHA_FULL:0:8}"
+        
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
-          DOCKER_USERNAME_VAR="${DOCKER_USERNAME}" \
-          DOCKER_PASSWORD_VAR="${DOCKER_PASSWORD}" \
-          COMMIT_SHA_VAR="${DRONE_COMMIT_SHA:0:8}" \
+          DOCKER_USERNAME_VAR="$$DOCKER_USERNAME" \
+          DOCKER_PASSWORD_VAR="$$DOCKER_PASSWORD" \
+          COMMIT_SHA_VAR="$$COMMIT_SHA_SHORT" \
           bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
           
