@@ -272,14 +272,23 @@ steps:
         DOCKER_USERNAME_B64=$(printf '%s' "$$DOCKER_USERNAME" | base64 -w 0)
         DOCKER_PASSWORD_B64=$(printf '%s' "$$DOCKER_PASSWORD" | base64 -w 0)
         
+        # Debug: Verify base64 encoding worked
+        if [ -z "$$DOCKER_USERNAME_B64" ] || [ -z "$$DOCKER_PASSWORD_B64" ]; then
+          echo "❌ ERROR: Base64 encoding failed!"
+          exit 1
+        fi
+        echo "✅ Base64 encoding successful (lengths: ${#DOCKER_USERNAME_B64}, ${#DOCKER_PASSWORD_B64})"
+        
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
-          bash -s << DEPLOYSCRIPT
+          DOCKER_USERNAME_B64="$$DOCKER_USERNAME_B64" \
+          DOCKER_PASSWORD_B64="$$DOCKER_PASSWORD_B64" \
+          COMMIT_SHA_VAR="$$COMMIT_SHA_SHORT" \
+          bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
           
           # Decode credentials from base64
-          DOCKER_USERNAME_VAR=$(echo "${DOCKER_USERNAME_B64}" | base64 -d)
-          DOCKER_PASSWORD_VAR=$(echo "${DOCKER_PASSWORD_B64}" | base64 -d)
-          COMMIT_SHA_VAR="${COMMIT_SHA_SHORT}"
+          DOCKER_USERNAME_VAR=$(echo "$DOCKER_USERNAME_B64" | base64 -d)
+          DOCKER_PASSWORD_VAR=$(echo "$DOCKER_PASSWORD_B64" | base64 -d)
           
           # Debug: Check what environment variables we received
           echo "🔍 DEBUG: Received environment variables:"
