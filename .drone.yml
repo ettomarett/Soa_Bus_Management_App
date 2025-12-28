@@ -240,251 +240,74 @@ steps:
           "$$VPS_USER@$$VPS_HOST:/opt/soa-bus-app/"
       - echo "🚀 Building and deploying services on VPS..."
       - |
-        # Read changed services and pass to VPS
-        CHANGED_SERVICES=$(cat /tmp/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
-        echo "📦 Changed services to build: $CHANGED_SERVICES"
-        
-        # Debug: Check if credentials are available (without printing values)
-        echo "🔍 Checking Docker credentials..."
-        if [ -n "$$DOCKER_USERNAME" ]; then
-          echo "   DOCKER_USERNAME is SET"
-        else
-          echo "   DOCKER_USERNAME is NOT SET"
-        fi
-        if [ -n "$$DOCKER_PASSWORD" ]; then
-          echo "   DOCKER_PASSWORD is SET"
-        else
-          echo "   DOCKER_PASSWORD is NOT SET"
-        fi
-        
         if [ -z "$$DOCKER_USERNAME" ] || [ -z "$$DOCKER_PASSWORD" ]; then
-          echo "❌ ERROR: DOCKER_USERNAME or DOCKER_PASSWORD is empty!"
-          echo "   Please verify that repository secrets 'ghcr_username' and 'ghcr_token' exist"
+          echo "❌ ERROR: Docker credentials are missing!"
           exit 1
         fi
-        echo "✅ Docker credentials are available"
         
-        # Extract short commit SHA (first 8 characters)
-        COMMIT_SHA_FULL="$$DRONE_COMMIT_SHA"
-        COMMIT_SHA_SHORT="$${COMMIT_SHA_FULL:0:8}"
-        
-        # Pass credentials via SSH using base64 encoding to safely pass values
-        # Alpine's base64 doesn't support -w flag, so we remove newlines manually
-        DOCKER_USERNAME_B64=$(printf '%s' "$$DOCKER_USERNAME" | base64 | tr -d '\n')
-        DOCKER_PASSWORD_B64=$(printf '%s' "$$DOCKER_PASSWORD" | base64 | tr -d '\n')
-        
-        # Debug: Verify base64 encoding worked
-        if [ -z "$$DOCKER_USERNAME_B64" ] || [ -z "$$DOCKER_PASSWORD_B64" ]; then
-          echo "❌ ERROR: Base64 encoding failed!"
-          echo "   DOCKER_USERNAME length: ${#DOCKER_USERNAME}"
-          echo "   DOCKER_PASSWORD length: ${#DOCKER_PASSWORD}"
-          exit 1
-        fi
-        echo "✅ Base64 encoding successful (lengths: ${#DOCKER_USERNAME_B64}, ${#DOCKER_PASSWORD_B64})"
+        COMMIT_SHA="$${DRONE_COMMIT_SHA:0:8}"
         
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
-          DOCKER_USERNAME_B64="$$DOCKER_USERNAME_B64" \
-          DOCKER_PASSWORD_B64="$$DOCKER_PASSWORD_B64" \
-          COMMIT_SHA_VAR="$$COMMIT_SHA_SHORT" \
+          DOCKER_USERNAME="$$DOCKER_USERNAME" \
+          DOCKER_PASSWORD="$$DOCKER_PASSWORD" \
+          COMMIT_SHA="$$COMMIT_SHA" \
           bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
           
-          # Debug: Check base64 variables received
-          echo "🔍 DEBUG: Base64 variables received:"
-          echo "   DOCKER_USERNAME_B64 is ${DOCKER_USERNAME_B64:+SET (length: ${#DOCKER_USERNAME_B64})}${DOCKER_USERNAME_B64:-NOT SET}"
-          echo "   DOCKER_PASSWORD_B64 is ${DOCKER_PASSWORD_B64:+SET (length: ${#DOCKER_PASSWORD_B64})}${DOCKER_PASSWORD_B64:-NOT SET}"
-          echo "   COMMIT_SHA_VAR is ${COMMIT_SHA_VAR:-NOT SET}"
-          
-          # Decode credentials from base64
-          DOCKER_USERNAME_VAR=$(echo "$DOCKER_USERNAME_B64" | base64 -d)
-          DOCKER_PASSWORD_VAR=$(echo "$DOCKER_PASSWORD_B64" | base64 -d)
-          
-          # Debug: Check decoded credentials
-          echo "🔍 DEBUG: Decoded credentials:"
-          echo "   DOCKER_USERNAME_VAR is ${DOCKER_USERNAME_VAR:+SET (length: ${#DOCKER_USERNAME_VAR})}${DOCKER_USERNAME_VAR:-NOT SET}"
-          echo "   DOCKER_PASSWORD_VAR is ${DOCKER_PASSWORD_VAR:+SET (length: ${#DOCKER_PASSWORD_VAR})}${DOCKER_PASSWORD_VAR:-NOT SET}"
-          
           # Load .env if it exists
-          if [ -f .env ]; then
-            set -a && source .env && set +a
-          fi
+          [ -f .env ] && set -a && source .env && set +a
           
-          # Get commit SHA from environment or git
-          echo "🔍 DEBUG: Before setting COMMIT_SHA - COMMIT_SHA_VAR='$COMMIT_SHA_VAR'"
-          if [ -n "$COMMIT_SHA_VAR" ] && [ "$COMMIT_SHA_VAR" != "" ]; then
-            COMMIT_SHA="$COMMIT_SHA_VAR"
-            echo "🔍 DEBUG: Set COMMIT_SHA from COMMIT_SHA_VAR: '$COMMIT_SHA'"
-          else
-            COMMIT_SHA=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "latest")
-            echo "🔍 DEBUG: Set COMMIT_SHA from git: '$COMMIT_SHA'"
-          fi
-          # Export COMMIT_SHA so it's available to all functions
+          # Set commit SHA if not provided
+          COMMIT_SHA="${COMMIT_SHA:-$(git rev-parse --short=8 HEAD 2>/dev/null || echo "latest")}"
           export COMMIT_SHA
-          echo "🔍 DEBUG: After export - COMMIT_SHA='$COMMIT_SHA', checking export..."
-          env | grep COMMIT_SHA || echo "⚠️  COMMIT_SHA not found in environment"
-          echo "📝 Commit SHA: $COMMIT_SHA (from COMMIT_SHA_VAR: $COMMIT_SHA_VAR)"
           
-          # Debug: Check credentials
-          if [ -z "$DOCKER_USERNAME_VAR" ] || [ -z "$DOCKER_PASSWORD_VAR" ]; then
-            echo "⚠️  ERROR: DOCKER_USERNAME_VAR or DOCKER_PASSWORD_VAR is empty!"
-            exit 1
-          fi
-          echo "✅ Docker credentials received"
+          # Login to GHCR
+          echo "$DOCKER_PASSWORD" | docker login ghcr.io -u "$DOCKER_USERNAME" --password-stdin || exit 1
           
-          # Detect changed services on VPS using git
-          CHANGED_SERVICES_VPS="all"
-          if [ -d .git ]; then
-            PREV_COMMIT=$(git rev-parse HEAD~1 2>/dev/null || echo "")
-            if [ -n "$PREV_COMMIT" ]; then
-              CHANGED_FILES=$(git diff --name-only $PREV_COMMIT HEAD 2>/dev/null || echo "")
-              if [ -n "$CHANGED_FILES" ]; then
-                CHANGED_SERVICES_VPS=""
-                echo "$CHANGED_FILES" | grep -q "^User/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS user-service" || true
-                echo "$CHANGED_FILES" | grep -q "^Ticket/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS ticket-service" || true
-                echo "$CHANGED_FILES" | grep -q "^Subscription/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS subscription-service" || true
-                echo "$CHANGED_FILES" | grep -q "^Route/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS route-service" || true
-                echo "$CHANGED_FILES" | grep -q "^BusGeolocation/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS bus-geolocation-service" || true
-                echo "$CHANGED_FILES" | grep -q "^Notification/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS notification-service" || true
-                echo "$CHANGED_FILES" | grep -q "^api-gateway/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS api-gateway" || true
-                echo "$CHANGED_FILES" | grep -q "^Frontend/" && CHANGED_SERVICES_VPS="$CHANGED_SERVICES_VPS frontend" || true
-                echo "$CHANGED_FILES" | grep -q "^pom.xml\|^\.drone.yml\|^docker-compose" && CHANGED_SERVICES_VPS="all" || true
-                CHANGED_SERVICES_VPS=$(echo $CHANGED_SERVICES_VPS | xargs)
-                [ -z "$CHANGED_SERVICES_VPS" ] && CHANGED_SERVICES_VPS="all" || true
-              fi
-            fi
-          fi
-          
-          echo "🔐 Logging in to GHCR..."
-          if [ -z "$DOCKER_USERNAME_VAR" ] || [ -z "$DOCKER_PASSWORD_VAR" ]; then
-            echo "❌ ERROR: Docker credentials are missing!"
-            echo "   DOCKER_USERNAME_VAR: ${DOCKER_USERNAME_VAR:+SET}"
-            echo "   DOCKER_PASSWORD_VAR: ${DOCKER_PASSWORD_VAR:+SET}"
-            exit 1
-          fi
-          echo "${DOCKER_PASSWORD_VAR}" | docker login ghcr.io -u "${DOCKER_USERNAME_VAR}" --password-stdin
-          if [ $? -ne 0 ]; then
-            echo "❌ ERROR: Docker login failed!"
-            exit 1
-          fi
-          echo "✅ Docker login successful"
-          
-          echo "📝 Using commit SHA: $COMMIT_SHA"
-          echo "🔍 DEBUG: Before function definition - COMMIT_SHA='$COMMIT_SHA'"
-          echo "🔍 DEBUG: Checking if COMMIT_SHA is exported: $(export -p | grep COMMIT_SHA || echo 'Not exported')"
-          
-          # Build JARs on VPS if needed (for services that require it)
-          echo "🔨 Building Java services with Maven on VPS..."
-          if command -v mvn >/dev/null 2>&1; then
-            if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
-              mvn clean package -DskipTests || echo "⚠️  Maven build failed, continuing with Docker build"
-            else
-              # Build only changed Java services
-              MAVEN_MODULES_VPS=""
-              echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS User" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Ticket" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Subscription" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Route" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS BusGeolocation" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "notification-service" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS Notification" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && MAVEN_MODULES_VPS="$MAVEN_MODULES_VPS api-gateway" || true
-              if [ -n "$MAVEN_MODULES_VPS" ]; then
-                mvn clean package -DskipTests -pl $MAVEN_MODULES_VPS -am || echo "⚠️  Maven build failed, continuing with Docker build"
-              fi
-            fi
-            echo "✅ Maven build completed on VPS"
-          else
-            echo "⚠️  Maven not found on VPS, assuming JARs are already built"
-          fi
-          
-          # Function to build and push a service
+          # Build and push function
           build_and_push() {
             local SERVICE_NAME=$1
             local DOCKERFILE=$2
             local IMAGE_NAME=$3
             local BUILD_ARGS=$4
-            
-            # Use the username from environment variable
-            local DOCKER_USER="${DOCKER_USERNAME_VAR:-ettomarett}"
-            local IMAGE_TAG="ghcr.io/${DOCKER_USER}/${IMAGE_NAME}"
-            
-            # Get TAG_SHA from exported COMMIT_SHA
+            local IMAGE_TAG="ghcr.io/$DOCKER_USERNAME/$IMAGE_NAME"
             local TAG_SHA="${COMMIT_SHA:-latest}"
             
-            echo "🔨 Building $SERVICE_NAME..."
-            echo "   Image: ${IMAGE_TAG}:${TAG_SHA}"
-            echo "   Dockerfile: $DOCKERFILE"
-            
+            echo "🔨 Building $SERVICE_NAME: ${IMAGE_TAG}:${TAG_SHA}"
             if [ -n "$BUILD_ARGS" ]; then
-              docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
+              docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" . || return 1
             else
-              docker build -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
+              docker build -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" . || return 1
             fi
-            
-            if [ $? -eq 0 ]; then
-              echo "📤 Pushing $SERVICE_NAME..."
-              docker push "${IMAGE_TAG}:${TAG_SHA}"
-              docker push "${IMAGE_TAG}:latest"
-              echo "✅ $SERVICE_NAME built and pushed successfully"
-            else
-              echo "❌ Failed to build $SERVICE_NAME"
-              return 1
-            fi
+            echo "📤 Pushing $SERVICE_NAME..."
+            docker push "${IMAGE_TAG}:${TAG_SHA}" && docker push "${IMAGE_TAG}:latest"
           }
           
-            if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
-              echo "🔨 Building all services..."
-              build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service"
-              build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service"
-              build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service"
-              build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service"
-              build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service"
-              build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service"
-              build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway"
-              build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"
-            else
-              echo "🔨 Building only changed services: $CHANGED_SERVICES_VPS"
-              echo "$CHANGED_SERVICES_VPS" | grep -q "user-service" && build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "ticket-service" && build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "subscription-service" && build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "route-service" && build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "bus-geolocation-service" && build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "notification-service" && build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "api-gateway" && build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway" || true
-              echo "$CHANGED_SERVICES_VPS" | grep -q "frontend" && build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" || true
-            fi
+          # Build all services
+          build_and_push "user-service" "User/Dockerfile" "soa-bus-app-user-service"
+          build_and_push "ticket-service" "Ticket/Dockerfile" "soa-bus-app-ticket-service"
+          build_and_push "subscription-service" "Subscription/Dockerfile" "soa-bus-app-subscription-service"
+          build_and_push "route-service" "Route/Dockerfile" "soa-bus-app-route-service"
+          build_and_push "bus-geolocation-service" "BusGeolocation/Dockerfile" "soa-bus-app-bus-geolocation-service"
+          build_and_push "notification-service" "Notification/Dockerfile" "soa-bus-app-notification-service"
+          build_and_push "api-gateway" "api-gateway/Dockerfile" "soa-bus-app-api-gateway"
+          build_and_push "frontend" "Frontend/Dockerfile" "soa-bus-app-frontend" "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"
           
-          # Use docker-compose.production.yml if it exists, otherwise use docker-compose.yml
-          if [ -f docker-compose.production.yml ]; then
-            COMPOSE_FILE="docker-compose.production.yml"
-          elif [ -f docker-compose.yml ]; then
-            COMPOSE_FILE="docker-compose.yml"
-            echo "Using docker-compose.yml (production file not found)"
-          else
-            echo "No docker-compose file found!"
-            exit 1
-          fi
+          # Deploy with docker-compose
+          COMPOSE_FILE="docker-compose.production.yml"
+          [ ! -f "$COMPOSE_FILE" ] && COMPOSE_FILE="docker-compose.yml"
           
-          echo "🚀 Stopping existing app containers (preserving Drone CI)..."
-          # Only stop containers defined in the compose file, not Drone CI containers
-          docker compose -f $COMPOSE_FILE stop || echo "⚠️  No existing containers to stop"
-          docker compose -f $COMPOSE_FILE rm -f || echo "⚠️  No containers to remove"
-          
-          echo "🚀 Starting services with $COMPOSE_FILE..."
+          echo "🚀 Deploying services..."
+          docker compose -f $COMPOSE_FILE down
           docker compose -f $COMPOSE_FILE up -d --remove-orphans
           
-          echo "🔧 Applying database migrations..."
-          # Wait for databases to be ready
+          # Apply database migration
           sleep 10
-          
-          # Fix users_role_check constraint to include CONTROLLER role
-          if docker ps | grep -q "user-service-postgres"; then
-            echo "Applying User service database migration..."
-            docker exec user-service-postgres psql -U postgres -d user_db -c "
-              ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-              ALTER TABLE users ADD CONSTRAINT users_role_check 
-                CHECK (role IN ('PASSENGER', 'DRIVER', 'CONTROLLER', 'ADMIN'));
-            " || echo "⚠️  Migration already applied or database not ready"
-          fi
+          docker exec user-service-postgres psql -U postgres -d user_db -c "
+            ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+            ALTER TABLE users ADD CONSTRAINT users_role_check 
+              CHECK (role IN ('PASSENGER', 'DRIVER', 'CONTROLLER', 'ADMIN'));
+          " 2>/dev/null || true
           
           echo "✅ Deployment complete!"
           docker compose -f $COMPOSE_FILE ps
