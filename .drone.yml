@@ -269,12 +269,15 @@ steps:
         COMMIT_SHA_SHORT="$${COMMIT_SHA_FULL:0:8}"
         
         # Pass credentials via SSH using base64 encoding to safely pass values
-        DOCKER_USERNAME_B64=$(printf '%s' "$$DOCKER_USERNAME" | base64 -w 0)
-        DOCKER_PASSWORD_B64=$(printf '%s' "$$DOCKER_PASSWORD" | base64 -w 0)
+        # Alpine's base64 doesn't support -w flag, so we remove newlines manually
+        DOCKER_USERNAME_B64=$(printf '%s' "$$DOCKER_USERNAME" | base64 | tr -d '\n')
+        DOCKER_PASSWORD_B64=$(printf '%s' "$$DOCKER_PASSWORD" | base64 | tr -d '\n')
         
         # Debug: Verify base64 encoding worked
         if [ -z "$$DOCKER_USERNAME_B64" ] || [ -z "$$DOCKER_PASSWORD_B64" ]; then
           echo "❌ ERROR: Base64 encoding failed!"
+          echo "   DOCKER_USERNAME length: ${#DOCKER_USERNAME}"
+          echo "   DOCKER_PASSWORD length: ${#DOCKER_PASSWORD}"
           exit 1
         fi
         echo "✅ Base64 encoding successful (lengths: ${#DOCKER_USERNAME_B64}, ${#DOCKER_PASSWORD_B64})"
@@ -286,15 +289,20 @@ steps:
           bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
           
+          # Debug: Check base64 variables received
+          echo "🔍 DEBUG: Base64 variables received:"
+          echo "   DOCKER_USERNAME_B64 is ${DOCKER_USERNAME_B64:+SET (length: ${#DOCKER_USERNAME_B64})}${DOCKER_USERNAME_B64:-NOT SET}"
+          echo "   DOCKER_PASSWORD_B64 is ${DOCKER_PASSWORD_B64:+SET (length: ${#DOCKER_PASSWORD_B64})}${DOCKER_PASSWORD_B64:-NOT SET}"
+          echo "   COMMIT_SHA_VAR is ${COMMIT_SHA_VAR:-NOT SET}"
+          
           # Decode credentials from base64
           DOCKER_USERNAME_VAR=$(echo "$DOCKER_USERNAME_B64" | base64 -d)
           DOCKER_PASSWORD_VAR=$(echo "$DOCKER_PASSWORD_B64" | base64 -d)
           
-          # Debug: Check what environment variables we received
-          echo "🔍 DEBUG: Received environment variables:"
+          # Debug: Check decoded credentials
+          echo "🔍 DEBUG: Decoded credentials:"
           echo "   DOCKER_USERNAME_VAR is ${DOCKER_USERNAME_VAR:+SET (length: ${#DOCKER_USERNAME_VAR})}${DOCKER_USERNAME_VAR:-NOT SET}"
           echo "   DOCKER_PASSWORD_VAR is ${DOCKER_PASSWORD_VAR:+SET (length: ${#DOCKER_PASSWORD_VAR})}${DOCKER_PASSWORD_VAR:-NOT SET}"
-          echo "   COMMIT_SHA_VAR is ${COMMIT_SHA_VAR:-NOT SET}"
           
           # Load .env if it exists
           if [ -f .env ]; then
