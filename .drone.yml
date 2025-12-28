@@ -268,13 +268,18 @@ steps:
         COMMIT_SHA_FULL="$$DRONE_COMMIT_SHA"
         COMMIT_SHA_SHORT="$${COMMIT_SHA_FULL:0:8}"
         
-        # Pass credentials via SSH - variables are expanded before SSH command
+        # Pass credentials via SSH using base64 encoding to safely pass values
+        DOCKER_USERNAME_B64=$(printf '%s' "$$DOCKER_USERNAME" | base64 -w 0)
+        DOCKER_PASSWORD_B64=$(printf '%s' "$$DOCKER_PASSWORD" | base64 -w 0)
+        
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
-          DOCKER_USERNAME_VAR="$$DOCKER_USERNAME" \
-          DOCKER_PASSWORD_VAR="$$DOCKER_PASSWORD" \
-          COMMIT_SHA_VAR="$$COMMIT_SHA_SHORT" \
-          bash -s << 'DEPLOYSCRIPT'
+          bash -s << DEPLOYSCRIPT
           cd /opt/soa-bus-app
+          
+          # Decode credentials from base64
+          DOCKER_USERNAME_VAR=$(echo "${DOCKER_USERNAME_B64}" | base64 -d)
+          DOCKER_PASSWORD_VAR=$(echo "${DOCKER_PASSWORD_B64}" | base64 -d)
+          COMMIT_SHA_VAR="${COMMIT_SHA_SHORT}"
           
           # Debug: Check what environment variables we received
           echo "🔍 DEBUG: Received environment variables:"
