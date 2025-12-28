@@ -246,20 +246,29 @@ steps:
         
         # Debug: Check if credentials are available (without printing values)
         echo "🔍 Checking Docker credentials..."
-        echo "   DOCKER_USERNAME is ${DOCKER_USERNAME:+SET}${DOCKER_USERNAME:-NOT SET}"
-        echo "   DOCKER_PASSWORD is ${DOCKER_PASSWORD:+SET}${DOCKER_PASSWORD:-NOT SET}"
-        if [ -z "$$DOCKER_USERNAME" ] || [ -z "$$DOCKER_PASSWORD" ]; then
-          echo "⚠️  WARNING: DOCKER_USERNAME or DOCKER_PASSWORD is empty!"
-          echo "   Please verify that organization secrets 'ghcr_username' and 'ghcr_token' exist"
-          echo "   and are accessible to this repository"
+        if [ -n "$$DOCKER_USERNAME" ]; then
+          echo "   DOCKER_USERNAME is SET"
         else
-          echo "✅ Docker credentials are available"
+          echo "   DOCKER_USERNAME is NOT SET"
         fi
+        if [ -n "$$DOCKER_PASSWORD" ]; then
+          echo "   DOCKER_PASSWORD is SET"
+        else
+          echo "   DOCKER_PASSWORD is NOT SET"
+        fi
+        
+        if [ -z "$$DOCKER_USERNAME" ] || [ -z "$$DOCKER_PASSWORD" ]; then
+          echo "❌ ERROR: DOCKER_USERNAME or DOCKER_PASSWORD is empty!"
+          echo "   Please verify that repository secrets 'ghcr_username' and 'ghcr_token' exist"
+          exit 1
+        fi
+        echo "✅ Docker credentials are available"
         
         # Extract short commit SHA (first 8 characters)
         COMMIT_SHA_FULL="$$DRONE_COMMIT_SHA"
         COMMIT_SHA_SHORT="$${COMMIT_SHA_FULL:0:8}"
         
+        # Pass credentials via SSH - variables are expanded before SSH command
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
           DOCKER_USERNAME_VAR="$$DOCKER_USERNAME" \
           DOCKER_PASSWORD_VAR="$$DOCKER_PASSWORD" \
@@ -267,7 +276,11 @@ steps:
           bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
           
-          # Environment variables are already set via SSH
+          # Debug: Check what environment variables we received
+          echo "🔍 DEBUG: Received environment variables:"
+          echo "   DOCKER_USERNAME_VAR is ${DOCKER_USERNAME_VAR:+SET (length: ${#DOCKER_USERNAME_VAR})}${DOCKER_USERNAME_VAR:-NOT SET}"
+          echo "   DOCKER_PASSWORD_VAR is ${DOCKER_PASSWORD_VAR:+SET (length: ${#DOCKER_PASSWORD_VAR})}${DOCKER_PASSWORD_VAR:-NOT SET}"
+          echo "   COMMIT_SHA_VAR is ${COMMIT_SHA_VAR:-NOT SET}"
           
           # Load .env if it exists
           if [ -f .env ]; then
