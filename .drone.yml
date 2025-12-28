@@ -238,25 +238,7 @@ steps:
           -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
           $${DRONE_WORKSPACE}/ \
           "$$VPS_USER@$$VPS_HOST:/opt/soa-bus-app/"
-      - echo "🚀 Building and deploying services on VPS..."
-      - |
-        if [ -z "$$DOCKER_USERNAME" ] || [ -z "$$DOCKER_PASSWORD" ]; then
-          echo "❌ ERROR: Docker credentials are missing!"
-          exit 1
-        fi
-        
-        COMMIT_SHA="$${DRONE_COMMIT_SHA:0:8}"
-        
-        # Write deployment script
-        printf '#!/bin/bash\nset -e\ncd /opt/soa-bus-app\nexport DOCKER_USERNAME DOCKER_PASSWORD COMMIT_SHA\n[ -f .env ] && set -a && source .env && set +a\nCOMMIT_SHA="${COMMIT_SHA:-$(git rev-parse --short=8 HEAD 2>/dev/null || echo latest)}"\necho "$DOCKER_PASSWORD" | docker login ghcr.io -u "$DOCKER_USERNAME" --password-stdin || exit 1\nbuild_and_push() {\n  local SERVICE_NAME=$1 DOCKERFILE=$2 IMAGE_NAME=$3 BUILD_ARGS=$4\n  local IMAGE_TAG="ghcr.io/$DOCKER_USERNAME/$IMAGE_NAME"\n  local TAG_SHA="$COMMIT_SHA"\n  echo "🔨 Building $SERVICE_NAME: ${IMAGE_TAG}:${TAG_SHA}"\n  if [ -n "$BUILD_ARGS" ]; then\n    docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" . || return 1\n  else\n    docker build -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" . || return 1\n  fi\n  echo "📤 Pushing $SERVICE_NAME..."\n  docker push "${IMAGE_TAG}:${TAG_SHA}" && docker push "${IMAGE_TAG}:latest"\n}\nbuild_and_push user-service User/Dockerfile soa-bus-app-user-service\nbuild_and_push ticket-service Ticket/Dockerfile soa-bus-app-ticket-service\nbuild_and_push subscription-service Subscription/Dockerfile soa-bus-app-subscription-service\nbuild_and_push route-service Route/Dockerfile soa-bus-app-route-service\nbuild_and_push bus-geolocation-service BusGeolocation/Dockerfile soa-bus-app-bus-geolocation-service\nbuild_and_push notification-service Notification/Dockerfile soa-bus-app-notification-service\nbuild_and_push api-gateway api-gateway/Dockerfile soa-bus-app-api-gateway\nbuild_and_push frontend Frontend/Dockerfile soa-bus-app-frontend "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"\nCOMPOSE_FILE="docker-compose.production.yml"\n[ ! -f "$COMPOSE_FILE" ] && COMPOSE_FILE="docker-compose.yml"\necho "🚀 Deploying services..."\ndocker compose -f $COMPOSE_FILE down\ndocker compose -f $COMPOSE_FILE up -d --remove-orphans\nsleep 10\ndocker exec user-service-postgres psql -U postgres -d user_db -c "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check; ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('"'"'PASSENGER'"'"', '"'"'DRIVER'"'"', '"'"'CONTROLLER'"'"', '"'"'ADMIN'"'"'));" 2>/dev/null || true\necho "✅ Deployment complete!"\ndocker compose -f $COMPOSE_FILE ps\n' > /tmp/deploy.sh
-        
-        # Copy and execute
-        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no /tmp/deploy.sh "$$VPS_USER@$$VPS_HOST:/tmp/deploy.sh"
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
-          DOCKER_USERNAME="$$DOCKER_USERNAME" \
-          DOCKER_PASSWORD="$$DOCKER_PASSWORD" \
-          COMMIT_SHA="$$COMMIT_SHA" \
-          "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
+      - echo "✅ Deployment step (temporarily disabled for testing)"
     depends_on:
       - detect-changed-services
       - build-user-service
