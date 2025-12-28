@@ -50,44 +50,159 @@ steps:
         - pull_request
         - custom
 
-  - name: build-backend-services
+  - name: build-user-service
     image: maven:3.9-eclipse-temurin-17
     volumes:
       - name: maven-cache
         path: /root/.m2
     commands:
       - |
-        echo "🔨 Building microservices..."
-        
-        # Read changed services
         CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
-        echo "📦 Detected changed services: $CHANGED_SERVICES"
-        
-        if [ "$CHANGED_SERVICES" = "all" ]; then
-          echo "📦 Building all services (root files changed or first build)..."
-          echo "📋 Building: User, Ticket, Subscription, Route, BusGeolocation, Notification, api-gateway"
-          mvn clean package -DskipTests
-          echo "✅ Maven build completed. Checking Notification JAR..."
+        if [ "$CHANGED_SERVICES" = "all" ] || echo "$CHANGED_SERVICES" | grep -q "user-service"; then
+          echo "🔨 Building User service..."
+          mvn clean package -DskipTests -pl User -am
+          echo "✅ User service build completed"
+        else
+          echo "⏭️  User service unchanged, skipping build"
+        fi
+    depends_on:
+      - detect-changed-services
+    when:
+      event:
+        - push
+        - pull_request
+        - custom
+
+  - name: build-ticket-service
+    image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - name: maven-cache
+        path: /root/.m2
+    commands:
+      - |
+        CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        if [ "$CHANGED_SERVICES" = "all" ] || echo "$CHANGED_SERVICES" | grep -q "ticket-service"; then
+          echo "🔨 Building Ticket service..."
+          mvn clean package -DskipTests -pl Ticket -am
+          echo "✅ Ticket service build completed"
+        else
+          echo "⏭️  Ticket service unchanged, skipping build"
+        fi
+    depends_on:
+      - detect-changed-services
+    when:
+      event:
+        - push
+        - pull_request
+        - custom
+
+  - name: build-subscription-service
+    image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - name: maven-cache
+        path: /root/.m2
+    commands:
+      - |
+        CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        if [ "$CHANGED_SERVICES" = "all" ] || echo "$CHANGED_SERVICES" | grep -q "subscription-service"; then
+          echo "🔨 Building Subscription service..."
+          mvn clean package -DskipTests -pl Subscription -am
+          echo "✅ Subscription service build completed"
+        else
+          echo "⏭️  Subscription service unchanged, skipping build"
+        fi
+    depends_on:
+      - detect-changed-services
+    when:
+      event:
+        - push
+        - pull_request
+        - custom
+
+  - name: build-route-service
+    image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - name: maven-cache
+        path: /root/.m2
+    commands:
+      - |
+        CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        if [ "$CHANGED_SERVICES" = "all" ] || echo "$CHANGED_SERVICES" | grep -q "route-service"; then
+          echo "🔨 Building Route service..."
+          mvn clean package -DskipTests -pl Route -am
+          echo "✅ Route service build completed"
+        else
+          echo "⏭️  Route service unchanged, skipping build"
+        fi
+    depends_on:
+      - detect-changed-services
+    when:
+      event:
+        - push
+        - pull_request
+        - custom
+
+  - name: build-bus-geolocation-service
+    image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - name: maven-cache
+        path: /root/.m2
+    commands:
+      - |
+        CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        if [ "$CHANGED_SERVICES" = "all" ] || echo "$CHANGED_SERVICES" | grep -q "bus-geolocation-service"; then
+          echo "🔨 Building BusGeolocation service..."
+          mvn clean package -DskipTests -pl BusGeolocation -am
+          echo "✅ BusGeolocation service build completed"
+        else
+          echo "⏭️  BusGeolocation service unchanged, skipping build"
+        fi
+    depends_on:
+      - detect-changed-services
+    when:
+      event:
+        - push
+        - pull_request
+        - custom
+
+  - name: build-notification-service
+    image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - name: maven-cache
+        path: /root/.m2
+    commands:
+      - |
+        CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        if [ "$CHANGED_SERVICES" = "all" ] || echo "$CHANGED_SERVICES" | grep -q "notification-service"; then
+          echo "🔨 Building Notification service..."
+          mvn clean package -DskipTests -pl Notification -am
+          echo "✅ Notification service build completed"
           ls -la Notification/target/*.jar || echo "⚠️  Notification JAR not found!"
         else
-          echo "📦 Building only changed services: $CHANGED_SERVICES"
-          
-          # Build specific modules based on what changed
-          MAVEN_MODULES=""
-          echo "$CHANGED_SERVICES" | grep -q "user-service" && MAVEN_MODULES="$MAVEN_MODULES User" || true
-          echo "$CHANGED_SERVICES" | grep -q "ticket-service" && MAVEN_MODULES="$MAVEN_MODULES Ticket" || true
-          echo "$CHANGED_SERVICES" | grep -q "subscription-service" && MAVEN_MODULES="$MAVEN_MODULES Subscription" || true
-          echo "$CHANGED_SERVICES" | grep -q "route-service" && MAVEN_MODULES="$MAVEN_MODULES Route" || true
-          echo "$CHANGED_SERVICES" | grep -q "bus-geolocation-service" && MAVEN_MODULES="$MAVEN_MODULES BusGeolocation" || true
-          echo "$CHANGED_SERVICES" | grep -q "notification-service" && MAVEN_MODULES="$MAVEN_MODULES Notification" || true
-          echo "$CHANGED_SERVICES" | grep -q "api-gateway" && MAVEN_MODULES="$MAVEN_MODULES api-gateway" || true
-          
-          if [ -n "$MAVEN_MODULES" ]; then
-            # Build only changed modules and their dependencies
-            mvn clean package -DskipTests -pl $MAVEN_MODULES -am
-          else
-            echo "✅ No backend services changed, skipping Maven build"
-          fi
+          echo "⏭️  Notification service unchanged, skipping build"
+        fi
+    depends_on:
+      - detect-changed-services
+    when:
+      event:
+        - push
+        - pull_request
+        - custom
+
+  - name: build-api-gateway
+    image: maven:3.9-eclipse-temurin-17
+    volumes:
+      - name: maven-cache
+        path: /root/.m2
+    commands:
+      - |
+        CHANGED_SERVICES=$(cat /drone/src/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
+        if [ "$CHANGED_SERVICES" = "all" ] || echo "$CHANGED_SERVICES" | grep -q "api-gateway"; then
+          echo "🔨 Building API Gateway..."
+          mvn clean package -DskipTests -pl api-gateway -am
+          echo "✅ API Gateway build completed"
+        else
+          echo "⏭️  API Gateway unchanged, skipping build"
         fi
     depends_on:
       - detect-changed-services
@@ -314,7 +429,13 @@ steps:
         DEPLOYSCRIPT
     depends_on:
       - detect-changed-services
-      - build-backend-services
+      - build-user-service
+      - build-ticket-service
+      - build-subscription-service
+      - build-route-service
+      - build-bus-geolocation-service
+      - build-notification-service
+      - build-api-gateway
     when:
       event:
         - push
