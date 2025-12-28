@@ -247,35 +247,16 @@ steps:
         
         COMMIT_SHA="$${DRONE_COMMIT_SHA:0:8}"
         
+        # Write deployment script
+        printf '#!/bin/bash\nset -e\ncd /opt/soa-bus-app\nexport DOCKER_USERNAME DOCKER_PASSWORD COMMIT_SHA\n[ -f .env ] && set -a && source .env && set +a\nCOMMIT_SHA="${COMMIT_SHA:-$(git rev-parse --short=8 HEAD 2>/dev/null || echo latest)}"\necho "$DOCKER_PASSWORD" | docker login ghcr.io -u "$DOCKER_USERNAME" --password-stdin || exit 1\nbuild_and_push() {\n  local SERVICE_NAME=$1 DOCKERFILE=$2 IMAGE_NAME=$3 BUILD_ARGS=$4\n  local IMAGE_TAG="ghcr.io/$DOCKER_USERNAME/$IMAGE_NAME"\n  local TAG_SHA="$COMMIT_SHA"\n  echo "🔨 Building $SERVICE_NAME: ${IMAGE_TAG}:${TAG_SHA}"\n  if [ -n "$BUILD_ARGS" ]; then\n    docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" . || return 1\n  else\n    docker build -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" . || return 1\n  fi\n  echo "📤 Pushing $SERVICE_NAME..."\n  docker push "${IMAGE_TAG}:${TAG_SHA}" && docker push "${IMAGE_TAG}:latest"\n}\nbuild_and_push user-service User/Dockerfile soa-bus-app-user-service\nbuild_and_push ticket-service Ticket/Dockerfile soa-bus-app-ticket-service\nbuild_and_push subscription-service Subscription/Dockerfile soa-bus-app-subscription-service\nbuild_and_push route-service Route/Dockerfile soa-bus-app-route-service\nbuild_and_push bus-geolocation-service BusGeolocation/Dockerfile soa-bus-app-bus-geolocation-service\nbuild_and_push notification-service Notification/Dockerfile soa-bus-app-notification-service\nbuild_and_push api-gateway api-gateway/Dockerfile soa-bus-app-api-gateway\nbuild_and_push frontend Frontend/Dockerfile soa-bus-app-frontend "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1"\nCOMPOSE_FILE="docker-compose.production.yml"\n[ ! -f "$COMPOSE_FILE" ] && COMPOSE_FILE="docker-compose.yml"\necho "🚀 Deploying services..."\ndocker compose -f $COMPOSE_FILE down\ndocker compose -f $COMPOSE_FILE up -d --remove-orphans\nsleep 10\ndocker exec user-service-postgres psql -U postgres -d user_db -c "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check; ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('"'"'PASSENGER'"'"', '"'"'DRIVER'"'"', '"'"'CONTROLLER'"'"', '"'"'ADMIN'"'"'));" 2>/dev/null || true\necho "✅ Deployment complete!"\ndocker compose -f $COMPOSE_FILE ps\n' > /tmp/deploy.sh
+        
+        # Copy and execute
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no /tmp/deploy.sh "$$VPS_USER@$$VPS_HOST:/tmp/deploy.sh"
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
           DOCKER_USERNAME="$$DOCKER_USERNAME" \
           DOCKER_PASSWORD="$$DOCKER_PASSWORD" \
           COMMIT_SHA="$$COMMIT_SHA" \
-          'cd /opt/soa-bus-app && \
-          export DOCKER_USERNAME DOCKER_PASSWORD COMMIT_SHA && \
-          [ -f .env ] && set -a && source .env && set +a && \
-          COMMIT_SHA="${COMMIT_SHA:-$(git rev-parse --short=8 HEAD 2>/dev/null || echo latest)}" && \
-          echo "$DOCKER_PASSWORD" | docker login ghcr.io -u "$DOCKER_USERNAME" --password-stdin && \
-          build_and_push() { \
-            local n=$1 f=$2 i=$3 a=$4 && \
-            local t="ghcr.io/$DOCKER_USERNAME/$i" s="$COMMIT_SHA" && \
-            echo "🔨 Building $n: ${t}:${s}" && \
-            if [ -n "$a" ]; then docker build $a -t "${t}:${s}" -t "${t}:latest" -f "$f" .; \
-            else docker build -t "${t}:${s}" -t "${t}:latest" -f "$f" .; fi && \
-            echo "📤 Pushing $n..." && docker push "${t}:${s}" && docker push "${t}:latest" \
-          } && \
-          build_and_push user-service User/Dockerfile soa-bus-app-user-service && \
-          build_and_push ticket-service Ticket/Dockerfile soa-bus-app-ticket-service && \
-          build_and_push subscription-service Subscription/Dockerfile soa-bus-app-subscription-service && \
-          build_and_push route-service Route/Dockerfile soa-bus-app-route-service && \
-          build_and_push bus-geolocation-service BusGeolocation/Dockerfile soa-bus-app-bus-geolocation-service && \
-          build_and_push notification-service Notification/Dockerfile soa-bus-app-notification-service && \
-          build_and_push api-gateway api-gateway/Dockerfile soa-bus-app-api-gateway && \
-          build_and_push frontend Frontend/Dockerfile soa-bus-app-frontend "--build-arg REACT_APP_API_URL=https://nassar.clueleak.com/api/v1 --build-arg REACT_APP_USER_SERVICE_URL=https://nassar.clueleak.com/api/v1" && \
-          f="docker-compose.production.yml" && [ ! -f "$f" ] && f="docker-compose.yml" && \
-          echo "🚀 Deploying..." && docker compose -f $f down && docker compose -f $f up -d --remove-orphans && \
-          sleep 10 && docker exec user-service-postgres psql -U postgres -d user_db -c "ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check; ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('"'"'PASSENGER'"'"', '"'"'DRIVER'"'"', '"'"'CONTROLLER'"'"', '"'"'ADMIN'"'"'));" 2>/dev/null || true && \
-          echo "✅ Done!" && docker compose -f $f ps'
+          "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
     depends_on:
       - detect-changed-services
       - build-user-service
