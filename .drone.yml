@@ -244,10 +244,12 @@ steps:
         CHANGED_SERVICES=$(cat /tmp/changed_services.txt 2>/dev/null | grep CHANGED_SERVICES= | cut -d'=' -f2 || echo "all")
         echo "📦 Changed services to build: $CHANGED_SERVICES"
         
-        # Export variables for SSH
-        export DOCKER_USERNAME_VAR="${DOCKER_USERNAME}"
-        export DOCKER_PASSWORD_VAR="${DOCKER_PASSWORD}"
-        export COMMIT_SHA_VAR="${DRONE_COMMIT_SHA:0:8}"
+        # Debug: Check if credentials are available (without printing values)
+        if [ -z "${DOCKER_USERNAME}" ] || [ -z "${DOCKER_PASSWORD}" ]; then
+          echo "⚠️  WARNING: DOCKER_USERNAME or DOCKER_PASSWORD is empty!"
+        else
+          echo "✅ Docker credentials are available"
+        fi
         
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$$VPS_USER@$$VPS_HOST" \
           DOCKER_USERNAME_VAR="${DOCKER_USERNAME}" \
@@ -255,6 +257,8 @@ steps:
           COMMIT_SHA_VAR="${DRONE_COMMIT_SHA:0:8}" \
           bash -s << 'DEPLOYSCRIPT'
           cd /opt/soa-bus-app
+          
+          # Environment variables are already set via SSH
           
           # Load .env if it exists
           if [ -f .env ]; then
@@ -275,6 +279,13 @@ steps:
           echo "🔍 DEBUG: After export - COMMIT_SHA='$COMMIT_SHA', checking export..."
           env | grep COMMIT_SHA || echo "⚠️  COMMIT_SHA not found in environment"
           echo "📝 Commit SHA: $COMMIT_SHA (from COMMIT_SHA_VAR: $COMMIT_SHA_VAR)"
+          
+          # Debug: Check credentials
+          if [ -z "$DOCKER_USERNAME_VAR" ] || [ -z "$DOCKER_PASSWORD_VAR" ]; then
+            echo "⚠️  ERROR: DOCKER_USERNAME_VAR or DOCKER_PASSWORD_VAR is empty!"
+            exit 1
+          fi
+          echo "✅ Docker credentials received"
           
           # Detect changed services on VPS using git
           CHANGED_SERVICES_VPS="all"
@@ -300,7 +311,18 @@ steps:
           fi
           
           echo "🔐 Logging in to GHCR..."
+          if [ -z "$DOCKER_USERNAME_VAR" ] || [ -z "$DOCKER_PASSWORD_VAR" ]; then
+            echo "❌ ERROR: Docker credentials are missing!"
+            echo "   DOCKER_USERNAME_VAR: ${DOCKER_USERNAME_VAR:+SET}"
+            echo "   DOCKER_PASSWORD_VAR: ${DOCKER_PASSWORD_VAR:+SET}"
+            exit 1
+          fi
           echo "${DOCKER_PASSWORD_VAR}" | docker login ghcr.io -u "${DOCKER_USERNAME_VAR}" --password-stdin
+          if [ $? -ne 0 ]; then
+            echo "❌ ERROR: Docker login failed!"
+            exit 1
+          fi
+          echo "✅ Docker login successful"
           
           echo "📝 Using commit SHA: $COMMIT_SHA"
           echo "🔍 DEBUG: Before function definition - COMMIT_SHA='$COMMIT_SHA'"
@@ -332,41 +354,37 @@ steps:
           
           # Function to build and push a service
           build_and_push() {
-            echo "🔍 DEBUG: build_and_push called with args: $1, $2, $3, $4"
-            echo "🔍 DEBUG: Inside function - COMMIT_SHA='$COMMIT_SHA'"
-            echo "🔍 DEBUG: Inside function - checking env: $(env | grep COMMIT_SHA || echo 'COMMIT_SHA not in env')"
-            
             local SERVICE_NAME=$1
             local DOCKERFILE=$2
             local IMAGE_NAME=$3
             local BUILD_ARGS=$4
-            local IMAGE_TAG="ghcr.io/ettomarett/$IMAGE_NAME"
             
-            echo "🔍 DEBUG: After local vars - IMAGE_TAG='$IMAGE_TAG'"
-            echo "🔍 DEBUG: COMMIT_SHA value before TAG_SHA assignment: '$COMMIT_SHA'"
+            # Use the username from environment variable
+            local DOCKER_USER="${DOCKER_USERNAME_VAR:-ettomarett}"
+            local IMAGE_TAG="ghcr.io/${DOCKER_USER}/${IMAGE_NAME}"
             
-            # Use COMMIT_SHA directly (it's exported in parent scope)
-            # Explicitly check if COMMIT_SHA is set, otherwise use latest
-            if [ -n "$COMMIT_SHA" ] && [ "$COMMIT_SHA" != "" ]; then
-              TAG_SHA="$COMMIT_SHA"
-              echo "🔍 DEBUG: Using COMMIT_SHA for TAG_SHA: '$TAG_SHA'"
-            else
-              TAG_SHA="latest"
-              echo "🔍 DEBUG: COMMIT_SHA is empty, using 'latest' for TAG_SHA"
-            fi
+            # Get TAG_SHA from exported COMMIT_SHA
+            local TAG_SHA="${COMMIT_SHA:-latest}"
             
-            echo "🔍 DEBUG: After TAG_SHA assignment - TAG_SHA='$TAG_SHA', COMMIT_SHA='$COMMIT_SHA'"
-            echo "🔍 DEBUG: Full tag will be: ${IMAGE_TAG}:${TAG_SHA}"
-            echo "🔨 Building $SERVICE_NAME with tag ${IMAGE_TAG}:${TAG_SHA}..."
+            echo "🔨 Building $SERVICE_NAME..."
+            echo "   Image: ${IMAGE_TAG}:${TAG_SHA}"
+            echo "   Dockerfile: $DOCKERFILE"
+            
             if [ -n "$BUILD_ARGS" ]; then
               docker build $BUILD_ARGS -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             else
               docker build -t "${IMAGE_TAG}:${TAG_SHA}" -t "${IMAGE_TAG}:latest" -f "$DOCKERFILE" .
             fi
             
-            echo "📤 Pushing $SERVICE_NAME..."
-            docker push "${IMAGE_TAG}:${TAG_SHA}"
-            docker push "${IMAGE_TAG}:latest"
+            if [ $? -eq 0 ]; then
+              echo "📤 Pushing $SERVICE_NAME..."
+              docker push "${IMAGE_TAG}:${TAG_SHA}"
+              docker push "${IMAGE_TAG}:latest"
+              echo "✅ $SERVICE_NAME built and pushed successfully"
+            else
+              echo "❌ Failed to build $SERVICE_NAME"
+              return 1
+            fi
           }
           
             if [ "$CHANGED_SERVICES_VPS" = "all" ]; then
