@@ -292,13 +292,11 @@ docker compose up -d
 
 ## 📝 License
 
-[Add your license here]
+OPEN SOURCE
 
 ## 👥 Contributors
 
-[Add contributors here]
-
-## 📧 Contact
-
-[Add contact information here]
+AIT TALEB Saad
+AKOUR Ayoub
+ETTALBI Omar
 
